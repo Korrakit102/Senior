@@ -120,6 +120,11 @@ export default function IssueReturnPage({
         body: JSON.stringify({ issueStatus: "inuse" }),
       });
       if (!res.ok) throw new Error("failed to update issue status");
+      // H3: อัปเดต stock UI หลัง API สำเร็จ
+      const equipment = equipmentByEvent[confirmIssueEvent.id] ?? [];
+      if (equipment.length > 0) {
+        onDeductStock(equipment.map((item) => ({ name: item.name, qty: item.qty })));
+      }
       setEvents((prev) => prev.map((e) => e.id === confirmIssueEvent.id ? { ...e, status: "inuse" } : e));
       onMarkEventAsIssued?.(confirmIssueEvent.id);
       setToast(`✅ Issue สำเร็จ: "${confirmIssueEvent.title}"`);
@@ -135,13 +140,15 @@ export default function IssueReturnPage({
   const handleConfirmReturn = async (damaged: boolean, photos: File[]) => {
     if (!confirmReturnEvent) return;
     try {
+      // H4+H5: ส่ง isDamaged ไปพร้อมกัน และ API จะ reset status เองในคำสั่งเดียว
       const res = await fetch(`/api/events/${confirmReturnEvent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issueStatus: "returned" }),
+        body: JSON.stringify({ issueStatus: "returned", isDamaged: damaged }),
       });
       if (!res.ok) throw new Error("failed to update issue status");
 
+      // H5: อัปเดต stock UI หลัง API สำเร็จเท่านั้น
       const equipment = equipmentByEvent[confirmReturnEvent.id] ?? [];
       if (equipment.length > 0) {
         if (damaged) {
@@ -154,12 +161,6 @@ export default function IssueReturnPage({
       setEvents((prev) => prev.map((e) => e.id === confirmReturnEvent.id ? { ...e, status: "returned" } : e));
       window.dispatchEvent(new CustomEvent("app:event:returned"));
       onUnmarkEventAsIssued?.(confirmReturnEvent.id);
-
-      fetch(`/api/events/${confirmReturnEvent.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision: "pending" }),
-      }).catch(() => {});
 
       if (damaged) {
         setToast(`✅ คืนอุปกรณ์แล้ว (ส่งซ่อม): "${confirmReturnEvent.title}"${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`);

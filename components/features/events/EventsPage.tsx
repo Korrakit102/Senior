@@ -108,6 +108,7 @@ export default function EventsPage({
             organizer: r.organizer, contactName: r.contactName,
             contactPhone: r.contactPhone, branchCode: r.branchCode,
             budgetTHB: r.budgetTHB, attendees: r.attendees,
+            isIssued: r.issueStatus === "inuse",
           };
         }));
 
@@ -148,6 +149,7 @@ export default function EventsPage({
               organizer: r.organizer, contactName: r.contactName,
               contactPhone: r.contactPhone, branchCode: r.branchCode,
               budgetTHB: r.budgetTHB, attendees: r.attendees,
+              isIssued: r.issueStatus === "inuse",
             };
           }));
         } catch { /* silent */ }
@@ -189,15 +191,19 @@ export default function EventsPage({
   const stats = useMemo(() => {
     const total = events.length;
     const pending = events.filter((e) => e.status.tone === "pending").length;
-    const approved = events.filter((e) => e.status.tone === "success").length;
-    const progress = events.filter((e) => e.status.tone === "progress").length;
+    const progress = events.filter(
+      (e) => e.status.tone === "progress" || e.isIssued === true || issuedEventIds.has(e.id)
+    ).length;
+    const approved = events.filter(
+      (e) => e.status.tone === "success" && e.isIssued !== true && !issuedEventIds.has(e.id)
+    ).length;
     return [
       { label: "ทั้งหมด", value: total, tone: "neutral" as const, icon: <Archive className="h-5 w-5" /> },
       { label: "รออนุมัติ", value: pending, tone: "amber" as const, icon: <Clock3 className="h-5 w-5" /> },
       { label: "อนุมัติแล้ว", value: approved, tone: "emerald" as const, icon: <ThumbsUp className="h-5 w-5" /> },
       { label: "กำลังดำเนินการ", value: progress, tone: "sky" as const, icon: <CheckCircle2 className="h-5 w-5" /> },
     ];
-  }, [events]);
+  }, [events, issuedEventIds]);
 
   const visibleEvents = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -216,15 +222,15 @@ export default function EventsPage({
     });
   }, [events, search, statusFilter]);
 
-  // ✅ map isIssued เข้าไปใน visibleEvents
+  // ✅ map isIssued เข้าไปใน visibleEvents (รวม DB + session)
   const visibleEventsWithIssued = useMemo(
-    () => visibleEvents.map((e) => ({ ...e, isIssued: issuedEventIds.has(e.id) })),
+    () => visibleEvents.map((e) => ({ ...e, isIssued: e.isIssued === true || issuedEventIds.has(e.id) })),
     [visibleEvents, issuedEventIds]
   );
 
   const eventsByDay = useMemo(() => {
     const map: Record<string, EventItem[]> = {};
-    for (const e of visibleEvents) {
+    for (const e of visibleEventsWithIssued) {
       const { startStr, endStr } = parseDateRange(e.date);
       const start = toDateLocal(startStr);
       const end = toDateLocal(endStr);
@@ -238,7 +244,7 @@ export default function EventsPage({
       }
     }
     return map;
-  }, [visibleEvents]);
+  }, [visibleEventsWithIssued]);
 
   const calendarGrid = useMemo(() => {
     const y = monthCursor.getFullYear();
@@ -398,38 +404,44 @@ export default function EventsPage({
         initialEquipment={manageEventId ? equipmentByEvent[manageEventId] ?? [] : []}
         stockData={stockData}
         onClose={() => { setIsManageOpen(false); setManageEventId(null); }}
-        onSubmitDecision={({ startDate, endDate, equipment, decision }) => {
+        onSubmitDecision={async ({ startDate, endDate, equipment, decision }) => {
           if (!manageEventId) return;
           const targetEvent = events.find((ev) => ev.id === manageEventId);
           const oldEquipment = equipmentByEvent[manageEventId];
-          if (oldEquipment && targetEvent?.status.tone === "success") {
-            onReturnStock(oldEquipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
-          }
-          setEquipmentByEvent((prev) => ({ ...prev, [manageEventId]: equipment }));
-          setEvents((prev) => prev.map((ev) => {
-            if (ev.id !== manageEventId) return ev;
-            return {
-              ...ev,
-              date: `${startDate} - ${endDate}`,
-              items: `${equipment.length} รายการ`,
-              status: decision === "approved"
-                ? { text: "อนุมัติแล้ว", tone: "success" as const }
-                : { text: "ไม่อนุมัติ", tone: "rejected" as const },
-            };
-          }));
-          fetch(`/api/events/${manageEventId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ startDate, endDate, equipment, decision }),
-          }).catch(() => { setToast("ไม่สามารถบันทึก Event ลงฐานข้อมูลได้"); });
-          if (decision === "approved") {
-            onDeductStock(equipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
-            pushNotification({ title: "อนุมัติอุปกรณ์ Event", message: `${targetEvent?.title ?? "Event"} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
-            window.dispatchEvent(new CustomEvent("app:event:approved"));
-            setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ถูกอนุมัติ`);
-          } else {
-            pushNotification({ title: "ไม่อนุมัติ Event", message: `${targetEvent?.title ?? "Event"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA", "Stockkeeper"] });
-            setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ไม่อนุมัติ`);
+          try {
+            const res = await fetch(`/api/events/${manageEventId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ startDate, endDate, equipment, decision }),
+            });
+            if (!res.ok) throw new Error("failed");
+            // อัปเดต UI เฉพาะหลัง API สำเร็จ
+            if (oldEquipment && targetEvent?.status.tone === "success") {
+              onReturnStock(oldEquipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
+            }
+            setEquipmentByEvent((prev) => ({ ...prev, [manageEventId]: equipment }));
+            setEvents((prev) => prev.map((ev) => {
+              if (ev.id !== manageEventId) return ev;
+              return {
+                ...ev,
+                date: `${startDate} - ${endDate}`,
+                items: `${equipment.length} รายการ`,
+                status: decision === "approved"
+                  ? { text: "อนุมัติแล้ว", tone: "success" as const }
+                  : { text: "ไม่อนุมัติ", tone: "rejected" as const },
+              };
+            }));
+            if (decision === "approved") {
+              onDeductStock(equipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
+              pushNotification({ title: "อนุมัติอุปกรณ์ Event", message: `${targetEvent?.title ?? "Event"} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
+              window.dispatchEvent(new CustomEvent("app:event:approved"));
+              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ถูกอนุมัติ`);
+            } else {
+              pushNotification({ title: "ไม่อนุมัติ Event", message: `${targetEvent?.title ?? "Event"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA", "Stockkeeper"] });
+              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ไม่อนุมัติ`);
+            }
+          } catch {
+            setToast("ไม่สามารถบันทึก Event ลงฐานข้อมูลได้");
           }
         }}
       />

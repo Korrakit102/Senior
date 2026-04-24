@@ -42,6 +42,7 @@ export type EventRow = {
   status_text: string;
   status_tone: EventStatusTone;
   issue_status: EventLifecycleStatus;
+  is_damaged: boolean;
   created_at: string;
   description: string;
   company: string;
@@ -53,6 +54,8 @@ export type EventRow = {
   branch_code: string | null;
   budget_thb: number | null;
   attendees: number | null;
+  contact_name: string | null;
+  contact_phone: string | null;
   equipment: EventEquipmentRow[];
 };
 
@@ -138,6 +141,18 @@ async function ensureEventsTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS issue_status TEXT NOT NULL DEFAULT 'ready';
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS is_damaged BOOLEAN NOT NULL DEFAULT false;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS contact_name TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS contact_phone TEXT;
     `);
   } finally {
     if (!client) c.release();
@@ -306,9 +321,9 @@ export async function listEvents(): Promise<EventRow[]> {
   try {
     await ensureEventsTable(client);
     const res: QueryResult<EventRow> = await client.query(
-      `SELECT id, title, status_text, status_tone, issue_status, created_at,
+      `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, equipment
+         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment
        FROM events ORDER BY created_at DESC, id DESC`
     );
     return res.rows;
@@ -322,9 +337,9 @@ export async function getEventById(id: string): Promise<EventRow | null> {
   try {
     await ensureEventsTable(client);
     const res: QueryResult<EventRow> = await client.query(
-      `SELECT id, title, status_text, status_tone, issue_status, created_at,
+      `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, equipment
+         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment
        FROM events WHERE id = $1 LIMIT 1`,
       [id]
     );
@@ -350,6 +365,8 @@ export async function insertEvent(payload: {
   branchCode?: string;
   budgetTHB?: number;
   attendees?: number;
+  contactName?: string;
+  contactPhone?: string;
   equipment?: EventEquipmentRow[];
 }) {
   const client = await pool.connect();
@@ -358,14 +375,16 @@ export async function insertEvent(payload: {
     await client.query(
       `INSERT INTO events (
         id, title, status_text, status_tone, created_at, description, company, place,
-        start_date, end_date, items_count, organizer, branch_code, budget_thb, attendees, equipment, issue_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17)`,
+        start_date, end_date, items_count, organizer, branch_code, budget_thb, attendees,
+        contact_name, contact_phone, equipment, issue_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19)`,
       [
         payload.id, payload.title, payload.statusText, payload.statusTone,
         payload.createdAt, payload.description, payload.company, payload.place,
         payload.startDate, payload.endDate, payload.itemsCount,
         payload.organizer ?? null, payload.branchCode ?? null,
         payload.budgetTHB ?? null, payload.attendees ?? null,
+        payload.contactName ?? null, payload.contactPhone ?? null,
         JSON.stringify(payload.equipment ?? []), "ready",
       ]
     );
@@ -374,14 +393,32 @@ export async function insertEvent(payload: {
   }
 }
 
-export async function updateEventIssueStatus(id: string, issueStatus: EventLifecycleStatus) {
+export async function updateEventIssueStatus(
+  id: string,
+  issueStatus: EventLifecycleStatus,
+  isDamaged = false
+) {
   const client = await pool.connect();
   try {
     await ensureEventsTable(client);
-    const res = await client.query(
-      `UPDATE events SET issue_status = $2 WHERE id = $1`,
-      [id, issueStatus]
-    );
+    let res;
+    if (issueStatus === "returned") {
+      // เมื่อคืนอุปกรณ์: รีเซ็ต status กลับเป็น "รออนุมัติ" และบันทึก is_damaged ในคำสั่งเดียว
+      res = await client.query(
+        `UPDATE events
+         SET issue_status = $2,
+             is_damaged = $3,
+             status_text = 'รออนุมัติ',
+             status_tone = 'pending'
+         WHERE id = $1`,
+        [id, issueStatus, isDamaged]
+      );
+    } else {
+      res = await client.query(
+        `UPDATE events SET issue_status = $2 WHERE id = $1`,
+        [id, issueStatus]
+      );
+    }
     return res.rowCount ?? 0;
   } finally {
     client.release();

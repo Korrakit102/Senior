@@ -38,7 +38,7 @@ export default function ManageEquipmentModal({
     endDate: string;
     equipment: SelectedEquipment[];
     decision: "approved" | "rejected";
-  }) => void;
+  }) => Promise<void>;
 }) {
   const [startDate, setStartDate] = useState(startDateInitial);
   const [endDate, setEndDate] = useState(endDateInitial);
@@ -217,8 +217,8 @@ export default function ManageEquipmentModal({
     setIsDecisionOpen(true);
   };
 
-  const handleDecision = (decision: "approved" | "rejected") => {
-    onSubmitDecision({ startDate, endDate, equipment, decision });
+  const handleDecision = async (decision: "approved" | "rejected") => {
+    await onSubmitDecision({ startDate, endDate, equipment, decision });
     setIsDecisionOpen(false);
     onClose();
   };

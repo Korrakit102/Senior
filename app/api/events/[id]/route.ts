@@ -24,38 +24,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
-    const rowCount = await updateEventIssueStatus(id, body.issueStatus);
+    const isDamaged = body.issueStatus === "returned" ? body.isDamaged === true : false;
+    const rowCount = await updateEventIssueStatus(id, body.issueStatus, isDamaged);
     if (rowCount === 0) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
     if (body.issueStatus === "inuse" && current.issue_status !== "inuse") {
       await deductStockForEventIssue(id);
-    }
-
-    return NextResponse.json({ ok: true });
-  }
-
-  // ─── Case 2: Reset status กลับเป็น pending (หลัง Return) ─────────────────
-  // ✅ รองรับกรณีส่งแค่ decision: "pending" โดยไม่ต้องมี startDate/endDate/equipment
-  if (body?.decision === "pending") {
-    const current = await getEventById(id);
-    if (!current) {
-      return NextResponse.json({ error: "event not found" }, { status: 404 });
-    }
-
-    const rowCount = await updateEventDecision({
-      id,
-      startDate: current.start_date,
-      endDate: current.end_date,
-      itemsCount: current.items_count,
-      statusText: "รออนุมัติ",
-      statusTone: "pending",
-      equipment: Array.isArray(current.equipment) ? current.equipment : [],
-    });
-
-    if (rowCount === 0) {
-      return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });

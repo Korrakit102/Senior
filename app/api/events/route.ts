@@ -10,6 +10,7 @@ function mapEvent(row: EventRow) {
     title: row.title,
     status: { text: row.status_text, tone: row.status_tone },
     issueStatus: row.issue_status,
+    isDamaged: row.is_damaged,
     code: `#${row.id}`,
     createdAt: row.created_at,
     desc: row.description,
@@ -21,6 +22,8 @@ function mapEvent(row: EventRow) {
     branchCode: row.branch_code ?? undefined,
     budgetTHB: row.budget_thb ?? undefined,
     attendees: row.attendees ?? undefined,
+    contactName: row.contact_name ?? undefined,
+    contactPhone: row.contact_phone ?? undefined,
     equipment: Array.isArray(row.equipment) ? row.equipment : [],
   };
 }
@@ -66,6 +69,8 @@ export async function POST(req: NextRequest) {
     branchCode: body.branchCode,
     budgetTHB: typeof body.budgetTHB === "number" ? body.budgetTHB : undefined,
     attendees: typeof body.attendees === "number" ? body.attendees : undefined,
+    contactName: typeof body.contactName === "string" ? body.contactName : undefined,
+    contactPhone: typeof body.contactPhone === "string" ? body.contactPhone : undefined,
     equipment: [],
   });
 

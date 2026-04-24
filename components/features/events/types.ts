@@ -46,6 +46,7 @@ export type NotificationItem = {
 
 export type EventApiItem = EventItem & {
   equipment?: SelectedEquipment[];
+  issueStatus?: string;
 };
 
 export type CreateForm = {

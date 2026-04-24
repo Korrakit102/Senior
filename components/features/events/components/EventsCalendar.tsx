@@ -118,10 +118,12 @@ export default function EventsCalendar({
                     }
                     className={[
                       "block w-full truncate rounded-lg border-l-4 px-2 py-1 text-left text-[11px] font-medium",
-                      getCalendarEventToneClass(event.status.tone),
+                      event.isIssued
+                        ? "border-l-violet-500 bg-violet-50 text-violet-700"
+                        : getCalendarEventToneClass(event.status.tone),
                       !inMonth ? "opacity-60" : "",
                     ].join(" ")}
-                    title={`${event.title} • ${event.status.text}`}
+                    title={`${event.title} • ${event.isIssued ? "กำลังใช้งาน" : event.status.text}`}
                   >
                     {event.title}
                   </button>

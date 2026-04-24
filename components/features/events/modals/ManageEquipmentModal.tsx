@@ -53,6 +53,7 @@ export default function ManageEquipmentModal({
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
   const equipRef = useRef<HTMLDivElement | null>(null);
 
   const equipmentOptions = useMemo(() => {
@@ -78,6 +79,7 @@ export default function ManageEquipmentModal({
     setEndDate(endDateInitial);
     setEquipment(initialEquipment);
     setShowHistory(false);
+    setHistoryError(false);
 
     const loadHistory = async () => {
       setIsLoadingHistory(true);
@@ -165,7 +167,10 @@ export default function ManageEquipmentModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, equipmentName, qty }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setHistoryError(true);
+        return;
+      }
       const newEntry: HistoryEntry = {
         id: `${Date.now()}-${Math.random()}`,
         action,
@@ -174,7 +179,9 @@ export default function ManageEquipmentModal({
         timestamp: new Date().toISOString(),
       };
       setHistory((prev) => [newEntry, ...prev]);
-    } catch { /* silent */ }
+    } catch {
+      setHistoryError(true);
+    }
   };
 
   const addSelected = () => {
@@ -240,6 +247,13 @@ export default function ManageEquipmentModal({
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {historyError && (
+              <div className="mx-5 mb-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+                <span className="text-xs font-medium text-amber-800">⚠ บันทึกประวัติอุปกรณ์ไม่สำเร็จ การเปลี่ยนแปลงอุปกรณ์ยังคงอยู่ แต่ประวัติอาจไม่สมบูรณ์</span>
+                <button onClick={() => setHistoryError(false)} className="shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900">ปิด</button>
+              </div>
+            )}
 
             <div className="px-5 pb-5">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

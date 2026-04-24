@@ -347,6 +347,7 @@ export default function AppShell() {
   const notifRef = React.useRef<HTMLDivElement | null>(null);
 
   const [stockData, setStockData] = useState<StockRow[]>(initialStock);
+  const [stockSaveError, setStockSaveError] = useState(false);
 
   const [issuedEventIds, setIssuedEventIds] = useState<Set<string>>(new Set());
 
@@ -412,7 +413,10 @@ export default function AppShell() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: next }),
-      }).catch(() => {});
+      }).catch(() => {
+        setStockData(prev);
+        setStockSaveError(true);
+      });
       return next;
     });
   };
@@ -602,6 +606,19 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
+      {stockSaveError && (
+        <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2">
+          <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 shadow-lg">
+            <span className="text-sm font-medium text-red-700">บันทึกข้อมูล Stock ไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
+            <button
+              onClick={() => setStockSaveError(false)}
+              className="ml-2 text-xs font-semibold text-red-500 hover:text-red-700"
+            >
+              ปิด ✕
+            </button>
+          </div>
+        </div>
+      )}
       <div className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-4">
           <div className="shrink-0">

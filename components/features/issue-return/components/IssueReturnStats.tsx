@@ -13,28 +13,28 @@ export default function IssueReturnStats({ stats }: Props) {
       <IssueReturnStatCard
         icon={<Clock3 className="h-5 w-5" />}
         value={stats.pending}
-        label="Pending Approval"
+        label="รออนุมัติ"
         tone="amber"
       />
 
       <IssueReturnStatCard
         icon={<ArrowRight className="h-5 w-5" />}
         value={stats.readyToIssue}
-        label="Ready to Issue"
+        label="พร้อมเบิก"
         tone="emerald"
       />
 
       <IssueReturnStatCard
         icon={<Package className="h-5 w-5" />}
         value={stats.inUse}
-        label="In Use"
+        label="กำลังใช้งาน"
         tone="violet"
       />
 
       <IssueReturnStatCard
         icon={<CornerDownLeft className="h-5 w-5" />}
         value={stats.readyToReturn}
-        label="Ready to Return"
+        label="พร้อมคืน"
         tone="sky"
       />
     </div>

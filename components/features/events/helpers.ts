@@ -84,6 +84,27 @@ export function parseDateRange(range: string) {
   };
 }
 
+export function fmtDateShortThai(d: Date | null): string {
+  if (!d || Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+export function fmtDateRangeThai(rangeStr: string): string {
+  if (!rangeStr) return "-";
+  const { startStr, endStr } = parseDateRange(rangeStr);
+  const start = startStr ? toDateLocal(startStr) : null;
+  const end = endStr ? toDateLocal(endStr) : null;
+  const startFmt = fmtDateShortThai(start);
+  const endFmt = fmtDateShortThai(end);
+  if (!startStr || startFmt === "-") return rangeStr;
+  if (!endStr || endStr === startStr || endFmt === startFmt) return startFmt;
+  return `${startFmt} - ${endFmt}`;
+}
+
 export function formatTHB(n: number) {
   return new Intl.NumberFormat("th-TH").format(n);
 }

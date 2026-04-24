@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import type { EventItem, SelectedEquipment } from "../types";
-import { formatTHB, parseDateRange, toDateLocal } from "../helpers";
+import { formatTHB, fmtDateRangeThai, parseDateRange, toDateLocal } from "../helpers";
 import EventStatusPill from "../components/EventStatusPill";
 
 export default function EventDetailModal({
@@ -83,7 +83,7 @@ export default function EventDetailModal({
       : "-";
 
   const dateRangeLabel =
-    startDate && endDate ? `${fmtDate(startDate)} - ${fmtDate(endDate)}` : event.date;
+    startDate && endDate ? `${fmtDate(startDate)} - ${fmtDate(endDate)}` : fmtDateRangeThai(event.date);
 
   return (
     <div className="fixed inset-0 z-[160]">

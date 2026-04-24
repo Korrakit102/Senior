@@ -7,6 +7,7 @@ import type {
   IssueReturnStats,
   TabKey,
 } from "./types";
+import { fmtDateShortThai, toDateLocal } from "../events/helpers";
 
 export function mapEquipmentOptions(stockData: AppStock[]): EquipmentOption[] {
   return stockData.map((s) => ({
@@ -92,15 +93,16 @@ export function mapApiEventsToIssueEvents(
   return rows
     .filter((r) => r.status?.tone === "success")
     .map((r) => {
-      const [startDate] = r.date.split(" - ").map((s) => s.trim());
+      const [startStr] = r.date.split(" - ").map((s) => s.trim());
+      const formattedDate = fmtDateShortThai(toDateLocal(startStr));
 
       return {
         id: r.id,
         title: r.title,
         code: r.code,
         company: r.company,
-        eventDate: startDate,
-        issueDate: startDate,
+        eventDate: formattedDate,
+        issueDate: formattedDate,
         equipment: r.items,
         status:
           r.issueStatus === "inuse" || r.issueStatus === "returned"

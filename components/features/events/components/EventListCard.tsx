@@ -1,6 +1,7 @@
 import { Eye, Package, Trash2, Lock } from "lucide-react";
 import EventStatusPill from "./EventStatusPill";
 import type { EventItem, Role } from "../types";
+import { fmtDateRangeThai } from "../helpers";
 
 type EventListCardProps = {
   event: EventItem;
@@ -99,7 +100,7 @@ export default function EventListCard({
         </div>
         <div>
           <div className="text-xs text-zinc-400">วันจัดงาน</div>
-          <div className="mt-1 text-sm font-medium text-zinc-900">{event.date}</div>
+          <div className="mt-1 text-sm font-medium text-zinc-900">{fmtDateRangeThai(event.date)}</div>
         </div>
         <div>
           <div className="text-xs text-zinc-400">อุปกรณ์</div>

@@ -8,8 +8,9 @@ import {
   BarChart3,
   Settings,
   Bell,
-  ChevronDown,
+  LogOut,
 } from "lucide-react";
+import LoginPage from "./LoginPage";
 
 import EventsPage from "./features/events/EventsPage";
 import Stock from "./pages/Stock";
@@ -336,6 +337,7 @@ function RoleBadge({ role }: { role: Role }) {
 }
 
 export default function AppShell() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<Role>("Manager");
   const tabs = useMemo(() => tabsByRole[role], [role]);
   const [tab, setTab] = useState<Tab>("events");
@@ -581,6 +583,23 @@ export default function AppShell() {
     );
   };
 
+  const handleLogin = (loginRole: Role) => {
+    setRole(loginRole);
+    setTab("events");
+    setIsLoggedIn(true);
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setRole("Manager");
+    setTab("events");
+    setNotifOpen(false);
+  };
+
+  if (!isLoggedIn) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen bg-zinc-50">
       <div className="sticky top-0 z-50 border-b border-zinc-200 bg-white/80 backdrop-blur">
@@ -606,20 +625,15 @@ export default function AppShell() {
               <RoleBadge role={role} />
             </div>
 
-            <div className="relative" ref={notifRef}>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="h-10 rounded-2xl border border-zinc-200 bg-white px-4 pr-10 text-sm font-semibold text-zinc-800 shadow-sm outline-none hover:bg-zinc-50 appearance-none"
-              >
-                <option value="SA">Customer</option>
-                <option value="Manager">Manager</option>
-                <option value="Stockkeeper">Stockkeeper</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            </div>
+            <button
+              onClick={handleLogout}
+              className="flex h-10 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </button>
 
-            <div className="relative">
+            <div className="relative" ref={notifRef}>
               <button
                 onClick={openNotifications}
                 className="relative grid h-10 w-10 place-items-center rounded-2xl border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50"

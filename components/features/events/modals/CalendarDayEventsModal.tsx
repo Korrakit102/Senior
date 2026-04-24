@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { X } from "lucide-react";
 import type { EventItem } from "../types";
 import EventStatusPill from "../components/EventStatusPill";
+import { fmtDateRangeThai } from "../helpers";
 
 export default function CalendarDayEventsModal({
   open,
@@ -81,7 +82,7 @@ export default function CalendarDayEventsModal({
                       </div>
                       <div>
                         <div className="text-xs text-zinc-400">วันจัดงาน</div>
-                        <div className="mt-1 text-sm font-medium text-zinc-900">{ev.date}</div>
+                        <div className="mt-1 text-sm font-medium text-zinc-900">{fmtDateRangeThai(ev.date)}</div>
                       </div>
                       <div>
                         <div className="text-xs text-zinc-400">อุปกรณ์</div>

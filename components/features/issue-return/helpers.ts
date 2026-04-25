@@ -41,10 +41,10 @@ export function removeEquipmentItem(
 
 export function getIssueReturnStats(events: IssueEvent[]): IssueReturnStats {
   return {
-    pending: events.filter((e) => e.status === "ready").length,
+    pending: events.length,
     readyToIssue: events.filter((e) => e.status === "ready").length,
     inUse: events.filter((e) => e.status === "inuse").length,
-    readyToReturn: events.filter((e) => e.status === "inuse").length,
+    readyToReturn: events.filter((e) => e.status === "returned").length,
   };
 }
 
@@ -56,8 +56,9 @@ export function getInUseList(events: IssueEvent[]) {
   return events.filter((e) => e.status === "inuse");
 }
 
+// Return tab แสดง event เดียวกับ inuse tab แต่ให้ Stockkeeper กด "คืนอุปกรณ์" ได้
 export function getReturnList(events: IssueEvent[]) {
-  return events.filter((e) => e.status === "inuse");
+  return getInUseList(events);
 }
 
 export function getVisibleList(

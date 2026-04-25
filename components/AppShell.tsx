@@ -598,6 +598,9 @@ export default function AppShell() {
     setRole("Manager");
     setTab("events");
     setNotifOpen(false);
+    setNotifList([]);
+    setUnread(0);
+    setIssuedEventIds(new Set());
   };
 
   if (!isLoggedIn) {

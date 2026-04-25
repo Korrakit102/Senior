@@ -94,10 +94,7 @@ export default function IssueReturnPage({
         setEquipmentByEvent(mapEquipmentByEvent(rows));
       } catch { /* silent */ }
     };
-    window.addEventListener("app:event:approved", () => {
-      console.log("🔔 app:event:approved received!");
-      onReload();
-    });
+    window.addEventListener("app:event:approved", onReload);
     return () => window.removeEventListener("app:event:approved", onReload);
   }, []);
 

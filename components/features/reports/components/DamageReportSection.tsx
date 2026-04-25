@@ -35,11 +35,12 @@ export default function DamageReportSection({ rows, onExport }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100">
-                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">ชื่อ Event</th>
-                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัส</th>
-                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่จัดงาน</th>
-                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่าอุปกรณ์ (฿)</th>
-                <th className="pb-3 text-left text-xs font-semibold text-zinc-500 pl-4">สถานะ</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">อุปกรณ์</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัส Event</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่</th>
+                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
+                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
+                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
@@ -48,6 +49,9 @@ export default function DamageReportSection({ rows, onExport }: Props) {
                   <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
                   <td className="py-3 text-zinc-500">{row.code}</td>
                   <td className="py-3 text-zinc-500">{fmtDateRangeThai(row.date)}</td>
+                  <td className="py-3 text-right font-medium text-zinc-900">
+                    {row.qty != null ? `${row.qty} ชิ้น` : "-"}
+                  </td>
                   <td className="py-3 text-right font-medium text-zinc-900">
                     {row.cost.toLocaleString("th-TH")}
                   </td>

@@ -8,15 +8,15 @@ import {
   BarChart3,
   Settings,
   Bell,
-  LogOut,
+  ChevronDown,
 } from "lucide-react";
-import LoginPage from "./LoginPage";
 
 import EventsPage from "./features/events/EventsPage";
 import Stock from "./pages/Stock";
 import IssueReturn from "./pages/IssueReturn";
 import Reports from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
+import type { DamageRow } from "./features/reports/types";
 
 export type Role = "SA" | "Manager" | "Stockkeeper";
 type Tab = "events" | "stock" | "issueReturn" | "reports" | "settings";
@@ -337,7 +337,6 @@ function RoleBadge({ role }: { role: Role }) {
 }
 
 export default function AppShell() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<Role>("Manager");
   const tabs = useMemo(() => tabsByRole[role], [role]);
   const [tab, setTab] = useState<Tab>("events");
@@ -345,11 +344,18 @@ export default function AppShell() {
   const [notifList, setNotifList] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
   const notifRef = React.useRef<HTMLDivElement | null>(null);
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const roleDropdownRef = React.useRef<HTMLDivElement | null>(null);
 
   const [stockData, setStockData] = useState<StockRow[]>(initialStock);
   const [stockSaveError, setStockSaveError] = useState(false);
 
   const [issuedEventIds, setIssuedEventIds] = useState<Set<string>>(new Set());
+  const [damageReportRows, setDamageReportRows] = useState<DamageRow[]>([]);
+
+  const addDamageRows = (rows: DamageRow[]) => {
+    setDamageReportRows((prev) => [...rows, ...prev]);
+  };
 
   useEffect(() => {
     const loadStock = async () => {
@@ -537,6 +543,23 @@ export default function AppShell() {
     };
   }, [notifOpen]);
 
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!roleDropdownOpen) return;
+      if (!roleDropdownRef.current) return;
+      if (!roleDropdownRef.current.contains(e.target as Node)) setRoleDropdownOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setRoleDropdownOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [roleDropdownOpen]);
+
   const openNotifications = async () => {
     try {
       const res = await fetch(`/api/notifications?role=${role}`);
@@ -587,26 +610,6 @@ export default function AppShell() {
     );
   };
 
-  const handleLogin = (loginRole: Role) => {
-    setRole(loginRole);
-    setTab("events");
-    setIsLoggedIn(true);
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setRole("Manager");
-    setTab("events");
-    setNotifOpen(false);
-    setNotifList([]);
-    setUnread(0);
-    setIssuedEventIds(new Set());
-  };
-
-  if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
   return (
     <div className="min-h-screen bg-zinc-50">
       {stockSaveError && (
@@ -641,18 +644,72 @@ export default function AppShell() {
               </div>
             )}
 
-            <div className="hidden md:block">
-              <RoleBadge role={role} />
+            {/* Role switcher — colored badge with dropdown */}
+            <div className="relative" ref={roleDropdownRef}>
+              <button
+                onClick={() => setRoleDropdownOpen((v) => !v)}
+                className={[
+                  "flex h-10 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold shadow-sm transition-colors",
+                  role === "SA"
+                    ? "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    : role === "Manager"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    : "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
+                ].join(" ")}
+              >
+                <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                <span>{getRoleLabel(role)}</span>
+                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+              </button>
+
+              {roleDropdownOpen && (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-52 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+                  <div className="px-3 py-2 text-xs font-semibold text-zinc-500">
+                    สลับ Role
+                  </div>
+                  {(["SA", "Manager", "Stockkeeper"] as Role[]).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => {
+                        setRole(r);
+                        setRoleDropdownOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-zinc-50 ${
+                        role === r ? "bg-zinc-50 font-semibold" : ""
+                      }`}
+                    >
+                      <div
+                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold text-white ${
+                          r === "SA"
+                            ? "bg-blue-600"
+                            : r === "Manager"
+                            ? "bg-emerald-600"
+                            : "bg-violet-600"
+                        }`}
+                      >
+                        {getRoleShort(r)}
+                      </div>
+                      <span
+                        className={
+                          r === "SA"
+                            ? "text-blue-700"
+                            : r === "Manager"
+                            ? "text-emerald-700"
+                            : "text-violet-700"
+                        }
+                      >
+                        {getRoleLabel(r)}
+                      </span>
+                      {role === r && (
+                        <span className="ml-auto h-2 w-2 rounded-full bg-current opacity-70" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="flex h-10 items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 shadow-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">ออกจากระบบ</span>
-            </button>
-
+            {/* Notification bell */}
             <div className="relative" ref={notifRef}>
               <button
                 onClick={openNotifications}
@@ -708,6 +765,7 @@ export default function AppShell() {
               )}
             </div>
 
+            {/* User card */}
             <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-3 py-2 shadow-sm">
               <div className="grid h-8 w-8 place-items-center rounded-full bg-zinc-100 text-sm font-bold text-zinc-700">
                 {getRoleShort(role)}
@@ -750,9 +808,12 @@ export default function AppShell() {
             onMarkDamagedStock={markDamagedStock}
             onMarkEventAsIssued={markEventAsIssued}
             onUnmarkEventAsIssued={unmarkEventAsIssued}
+            onAddDamageRows={addDamageRows}
           />
         )}
-        {tab === "reports" && <Reports role={role} stockData={stockData} />}
+        {tab === "reports" && (
+          <Reports role={role} stockData={stockData} extraDamageRows={damageReportRows} />
+        )}
         {tab === "settings" && role === "Manager" && <SettingsPage />}
         {tab === "settings" && role !== "Manager" && (
           <div className="px-6 py-10 text-sm text-zinc-500">Manager Only</div>

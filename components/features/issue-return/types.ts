@@ -40,3 +40,11 @@ export type IssueReturnStats = {
   inUse: number;
   readyToReturn: number;
 };
+
+export type ReturnItemResult = {
+  name: string;
+  qty: number;
+  damaged: boolean;
+  damagedQty: number;
+  photos: File[];
+};

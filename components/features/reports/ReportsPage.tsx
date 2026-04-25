@@ -56,9 +56,10 @@ function daysBetween(range: string): number {
 type Props = {
   role: Role;
   stockData: AppStock[];
+  extraDamageRows?: DamageRow[];
 };
 
-export default function ReportsPage({ role, stockData }: Props) {
+export default function ReportsPage({ role, stockData, extraDamageRows }: Props) {
   const [tab, setTab] = useState<ReportTab>(
     role === "Stockkeeper" ? "stock" : "finance"
   );
@@ -234,21 +235,24 @@ export default function ReportsPage({ role, stockData }: Props) {
     loadEvents();
   }, []);
 
-  const damageRows = useMemo<DamageRow[]>(
-    () =>
-      eventReportRows
-        .filter((e) => e.isDamaged)
-        .map((e) => ({
-          id: e.id,
-          itemName: e.title,
-          code: `#${e.id}`,
-          eventId: e.id,
-          date: e.date,
-          cost: e.revenue,
-          status: "reported" as const,
-        })),
-    [eventReportRows]
-  );
+  const damageRows = useMemo<DamageRow[]>(() => {
+    // Per-item rows from return flow take priority; exclude event-level rows for those events
+    const extraEventIds = new Set(
+      (extraDamageRows ?? []).map((r) => r.eventId).filter(Boolean)
+    );
+    const apiRows = eventReportRows
+      .filter((e) => e.isDamaged && !extraEventIds.has(e.id))
+      .map((e) => ({
+        id: e.id,
+        itemName: e.title,
+        code: `#${e.id}`,
+        eventId: e.id,
+        date: e.date,
+        cost: e.revenue,
+        status: "reported" as const,
+      }));
+    return [...(extraDamageRows ?? []), ...apiRows];
+  }, [eventReportRows, extraDamageRows]);
 
   const filteredStock = useMemo(
     () => filterStockRows(stockRows, query),

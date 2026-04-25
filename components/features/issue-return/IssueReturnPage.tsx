@@ -2,11 +2,13 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { Role, StockRow } from "../../AppShell";
+import type { DamageRow } from "../reports/types";
 import type {
   EquipmentItem,
   EventEquipmentItem,
   EventStatus,
   IssueEvent,
+  ReturnItemResult,
   TabKey,
 } from "./types";
 import {
@@ -40,6 +42,7 @@ type Props = {
   onMarkDamagedStock: (equipmentList: { name: string; qty: number }[]) => void;
   onMarkEventAsIssued?: (eventId: string) => void;
   onUnmarkEventAsIssued?: (eventId: string) => void;
+  onAddDamageRows?: (rows: DamageRow[]) => void;
 };
 
 export default function IssueReturnPage({
@@ -50,6 +53,7 @@ export default function IssueReturnPage({
   onMarkDamagedStock,
   onMarkEventAsIssued,
   onUnmarkEventAsIssued,
+  onAddDamageRows,
 }: Props) {
   const [tab, setTab] = useState<TabKey>("issue");
   const [events, setEvents] = useState<IssueEvent[]>([]);
@@ -134,33 +138,61 @@ export default function IssueReturnPage({
 
   const handleReturnClick = (event: IssueEvent) => setConfirmReturnEvent(event);
 
-  const handleConfirmReturn = async (damaged: boolean, photos: File[]) => {
+  const handleConfirmReturn = async (returnItems: ReturnItemResult[]) => {
     if (!confirmReturnEvent) return;
     try {
-      // H4+H5: ส่ง isDamaged ไปพร้อมกัน และ API จะ reset status เองในคำสั่งเดียว
+      const damagedItems = returnItems.filter((i) => i.damaged);
+      const normalItems = returnItems.filter((i) => !i.damaged);
+      const anyDamaged = damagedItems.length > 0;
+
       const res = await fetch(`/api/events/${confirmReturnEvent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issueStatus: "returned", isDamaged: damaged }),
+        body: JSON.stringify({ issueStatus: "returned", isDamaged: anyDamaged }),
       });
       if (!res.ok) throw new Error("failed to update issue status");
 
-      // H5: อัปเดต stock UI หลัง API สำเร็จเท่านั้น
-      const equipment = equipmentByEvent[confirmReturnEvent.id] ?? [];
-      if (equipment.length > 0) {
-        if (damaged) {
-          onMarkDamagedStock(equipment.map((item) => ({ name: item.name, qty: item.qty })));
-        } else {
-          onReturnStock(equipment.map((item) => ({ name: item.name, qty: item.qty })));
-        }
+      if (damagedItems.length > 0) {
+        onMarkDamagedStock(damagedItems.map((i) => ({ name: i.name, qty: i.qty })));
+      }
+      if (normalItems.length > 0) {
+        onReturnStock(normalItems.map((i) => ({ name: i.name, qty: i.qty })));
+      }
+      // fallback: no item info
+      if (returnItems.length === 0) {
+        const equipment = equipmentByEvent[confirmReturnEvent.id] ?? [];
+        onReturnStock(equipment.map((i) => ({ name: i.name, qty: i.qty })));
       }
 
-      setEvents((prev) => prev.map((e) => e.id === confirmReturnEvent.id ? { ...e, status: "returned" } : e));
+      // Build per-item DamageRow entries
+      if (anyDamaged && onAddDamageRows) {
+        const newRows: DamageRow[] = damagedItems.map((item, idx) => {
+          const pricePerDay = stockData.find((s) => s.name === item.name)?.pricePerDay ?? 0;
+          return {
+            id: `dmg-${confirmReturnEvent.id}-${idx}-${Date.now()}`,
+            itemName: item.name,
+            code: confirmReturnEvent.code,
+            eventId: confirmReturnEvent.id,
+            date: confirmReturnEvent.eventDate,
+            qty: item.damagedQty,
+            cost: pricePerDay * item.damagedQty,
+            status: "reported",
+          };
+        });
+        onAddDamageRows(newRows);
+      }
+
+      setEvents((prev) =>
+        prev.map((e) => e.id === confirmReturnEvent.id ? { ...e, status: "returned" } : e)
+      );
       window.dispatchEvent(new CustomEvent("app:event:returned"));
       onUnmarkEventAsIssued?.(confirmReturnEvent.id);
 
-      if (damaged) {
-        setToast(`✅ คืนอุปกรณ์แล้ว (ส่งซ่อม): "${confirmReturnEvent.title}"${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`);
+      const totalPhotos = returnItems.reduce((sum, i) => sum + i.photos.length, 0);
+      if (anyDamaged) {
+        setToast(
+          `✅ คืนอุปกรณ์แล้ว (เสียหาย ${damagedItems.length} รายการ${totalPhotos > 0 ? ` • แนบรูป ${totalPhotos} รูป` : ""}): "${confirmReturnEvent.title}"`
+        );
       } else {
         setToast(`✅ คืนอุปกรณ์สำเร็จ: "${confirmReturnEvent.title}"`);
       }
@@ -197,7 +229,13 @@ export default function IssueReturnPage({
       <QuickIssueModal open={isQuickIssueOpen} onClose={() => setIsQuickIssueOpen(false)} onConfirm={handleQuickIssue} equipmentOptions={equipmentOptions} />
       <QuickReturnModal open={isQuickReturnOpen} onClose={() => setIsQuickReturnOpen(false)} onConfirm={handleQuickReturn} equipmentOptions={equipmentOptions} />
       <ConfirmIssueModal open={!!confirmIssueEvent} event={confirmIssueEvent} onConfirm={handleConfirmIssue} onCancel={() => setConfirmIssueEvent(null)} />
-      <ConfirmReturnModal open={!!confirmReturnEvent} event={confirmReturnEvent} onConfirm={handleConfirmReturn} onCancel={() => setConfirmReturnEvent(null)} />
+      <ConfirmReturnModal
+        open={!!confirmReturnEvent}
+        event={confirmReturnEvent}
+        equipmentItems={confirmReturnEvent ? (equipmentByEvent[confirmReturnEvent.id] ?? []) : []}
+        onConfirm={handleConfirmReturn}
+        onCancel={() => setConfirmReturnEvent(null)}
+      />
 
       <div className="px-6 py-8">
         <IssueReturnHeader onOpenQuickIssue={() => setIsQuickIssueOpen(true)} onOpenQuickReturn={() => setIsQuickReturnOpen(true)} />

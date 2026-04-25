@@ -72,6 +72,12 @@ export default function ManageEquipmentModal({
     [equipmentOptions, selectedName]
   );
 
+  const maxQty = useMemo(() => {
+    if (!selectedOption) return 0;
+    const alreadyInList = equipment.find((e) => e.name === selectedOption.name)?.qty ?? 0;
+    return Math.max(0, selectedOption.available - alreadyInList);
+  }, [selectedOption, equipment]);
+
   // ✅ โหลดประวัติจาก database เมื่อเปิด modal
   useEffect(() => {
     if (!open || !eventId) return;
@@ -152,8 +158,10 @@ export default function ManageEquipmentModal({
     const e: { name?: string; qty?: string } = {};
     if (!selectedName) e.name = "กรุณาเลือกอุปกรณ์";
     if (!qty.trim()) e.qty = "กรุณากรอกจำนวน";
-    if (qty.trim() && (Number.isNaN(Number(qty)) || Number(qty) <= 0)) {
+    else if (Number.isNaN(Number(qty)) || Number(qty) <= 0) {
       e.qty = "จำนวนต้องเป็นตัวเลขมากกว่า 0";
+    } else if (selectedOption && Number(qty) > maxQty) {
+      e.qty = `จำนวนเกิน stock คงเหลือ (สูงสุด ${maxQty} ชิ้น)`;
     }
     setSelectErrors(e);
     return Object.keys(e).length === 0;
@@ -449,13 +457,40 @@ export default function ManageEquipmentModal({
                 </div>
                 <div className="mt-4">
                   <div className="mb-1 text-xs font-semibold text-zinc-700">Quantity</div>
-                  <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Enter quantity"
-                    className={["h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none", selectErrors.qty ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200"].join(" ")} />
-                  {selectErrors.qty && <div className="mt-1 text-xs text-red-600">{selectErrors.qty}</div>}
+                  <input
+                    type="number"
+                    min={1}
+                    max={selectedOption ? maxQty : undefined}
+                    value={qty}
+                    onChange={(e) => {
+                      setQty(e.target.value);
+                      setSelectErrors((s) => ({ ...s, qty: undefined }));
+                    }}
+                    placeholder="Enter quantity"
+                    className={["h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none", selectErrors.qty ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200 focus:ring-2 focus:ring-zinc-200"].join(" ")}
+                  />
+                  {selectErrors.qty ? (
+                    <div className="mt-1 text-xs text-red-600">{selectErrors.qty}</div>
+                  ) : selectedOption ? (
+                    <div className="mt-1 text-xs text-zinc-500">
+                      คงเหลือ: <span className={maxQty === 0 ? "font-semibold text-red-600" : "font-semibold text-emerald-600"}>{maxQty} ชิ้น</span>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
                   <button onClick={() => setIsSelectOpen(false)} className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Cancel</button>
-                  <button onClick={addSelected} className="h-10 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800">Add</button>
+                  <button
+                    onClick={addSelected}
+                    disabled={!selectedName || !qty.trim() || Number(qty) <= 0 || (!!selectedOption && Number(qty) > maxQty)}
+                    className={[
+                      "h-10 rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition-colors",
+                      !selectedName || !qty.trim() || Number(qty) <= 0 || (!!selectedOption && Number(qty) > maxQty)
+                        ? "cursor-not-allowed bg-zinc-300"
+                        : "bg-zinc-900 hover:bg-zinc-800",
+                    ].join(" ")}
+                  >
+                    Add
+                  </button>
                 </div>
               </div>
             </div>

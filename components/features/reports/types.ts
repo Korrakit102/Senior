@@ -44,6 +44,7 @@ export type DamageRow = {
   code: string;
   eventId?: string;
   date: string;
+  qty?: number;
   cost: number;
   status: "reported" | "fixed";
 };

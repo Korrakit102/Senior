@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(psql *)",
+      "PowerShell(psql *)",
+      "PowerShell(cmd /c \"dir \"\"C:\\\\Program Files\\\\\"\" 2>&1\")",
+      "PowerShell(cmd /c \"dir \"\"C:\\\\Program Files\\\\PostgreSQL\\\\\"\" 2>&1\")",
+      "PowerShell($psql = \"C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe\"; & $psql -U postgres -c \"\\\\l\" 2>&1)",
+      "PowerShell($env:PGPASSWORD = \"postgres\"; & \"C:\\\\Program Files\\\\PostgreSQL\\\\18\\\\bin\\\\psql.exe\" -U postgres -c \"CREATE DATABASE senior_events;\" 2>&1 | Out-String)",
+      "Bash(curl -s http://localhost:3000/api/events)",
+      "Bash(curl -s http://localhost:3000/api/stock)",
+      "Bash(curl *)"
     ]
   }
 }

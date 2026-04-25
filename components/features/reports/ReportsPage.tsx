@@ -16,6 +16,7 @@ import {
   buildDamageExportData,
   buildDocsExportData,
   buildEventsExportData,
+  buildFinanceExportData,
   buildStockExportData,
   exportToExcel,
   filterDamageRows,
@@ -223,7 +224,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
                 : 0,
               status: {
                 text: r.status.text,
-                tone: r.status.tone === "success" ? "success" : "pending",
+                tone: (r.status.tone === "success" || r.status.tone === "progress") ? "success" : "pending",
               },
             };
           })
@@ -244,11 +245,11 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       .filter((e) => e.isDamaged && !extraEventIds.has(e.id))
       .map((e) => ({
         id: e.id,
-        itemName: e.title,
+        itemName: `ความเสียหาย — ${e.title}`,
         code: `#${e.id}`,
         eventId: e.id,
         date: e.date,
-        cost: e.revenue,
+        cost: 0,
         status: "reported" as const,
       }));
     return [...(extraDamageRows ?? []), ...apiRows];
@@ -302,7 +303,11 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   };
 
   const handleExportFinance = () => {
-    alert("ยังไม่มีข้อมูลการเงินให้ส่งออก");
+    exportToExcel(
+      "Finance Report",
+      "finance-report",
+      buildFinanceExportData(finance, eventReportRows)
+    );
   };
 
   const handleExportDamage = () => {

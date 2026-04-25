@@ -76,8 +76,8 @@ export default function EventListCard({
             )
           )}
 
-          {/* ปุ่มลบ - SA เห็น */}
-          {role === "SA" && (
+          {/* ปุ่มลบ - SA เห็น แต่ไม่แสดงเมื่ออุปกรณ์ถูกเบิกออกไปแล้ว */}
+          {role === "SA" && !isLocked && (
             <button
               onClick={() => onDelete(event.id)}
               className="rounded-2xl border border-red-200 bg-white p-2.5 text-red-600 shadow-sm hover:bg-red-50"

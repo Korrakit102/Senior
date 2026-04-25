@@ -2,7 +2,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
-  deductStockForEventIssue,
   deleteEventById,
   getEventById,
   updateEventDecision,
@@ -28,10 +27,6 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const rowCount = await updateEventIssueStatus(id, body.issueStatus, isDamaged);
     if (rowCount === 0) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
-    }
-
-    if (body.issueStatus === "inuse" && current.issue_status !== "inuse") {
-      await deductStockForEventIssue(id);
     }
 
     return NextResponse.json({ ok: true });

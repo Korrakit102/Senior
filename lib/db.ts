@@ -419,13 +419,12 @@ export async function updateEventIssueStatus(
     await ensureEventsTable(client);
     let res;
     if (issueStatus === "returned") {
-      // เมื่อคืนอุปกรณ์: รีเซ็ต status กลับเป็น "รออนุมัติ" และบันทึก is_damaged ในคำสั่งเดียว
       res = await client.query(
         `UPDATE events
          SET issue_status = $2,
              is_damaged = $3,
-             status_text = 'รออนุมัติ',
-             status_tone = 'pending'
+             status_text = 'เสร็จสิ้น',
+             status_tone = 'progress'
          WHERE id = $1`,
         [id, issueStatus, isDamaged]
       );

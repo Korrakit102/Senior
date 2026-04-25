@@ -121,11 +121,6 @@ export default function IssueReturnPage({
         body: JSON.stringify({ issueStatus: "inuse" }),
       });
       if (!res.ok) throw new Error("failed to update issue status");
-      // H3: อัปเดต stock UI หลัง API สำเร็จ
-      const equipment = equipmentByEvent[confirmIssueEvent.id] ?? [];
-      if (equipment.length > 0) {
-        onDeductStock(equipment.map((item) => ({ name: item.name, qty: item.qty })));
-      }
       setEvents((prev) => prev.map((e) => e.id === confirmIssueEvent.id ? { ...e, status: "inuse" } : e));
       onMarkEventAsIssued?.(confirmIssueEvent.id);
       setToast(`✅ Issue สำเร็จ: "${confirmIssueEvent.title}"`);
@@ -153,6 +148,14 @@ export default function IssueReturnPage({
       if (!res.ok) throw new Error("failed to update issue status");
 
       if (damagedItems.length > 0) {
+        // คืนส่วนที่ไม่เสียหายกลับก่อน (qty - damagedQty)
+        const undamagedPortions = damagedItems
+          .filter((i) => i.qty > i.damagedQty)
+          .map((i) => ({ name: i.name, qty: i.qty - i.damagedQty }));
+        if (undamagedPortions.length > 0) {
+          onReturnStock(undamagedPortions);
+        }
+        // จากนั้น mark damaged (override status → "ซ่อมแซม")
         onMarkDamagedStock(damagedItems.map((i) => ({ name: i.name, qty: i.qty })));
       }
       if (normalItems.length > 0) {
@@ -167,7 +170,7 @@ export default function IssueReturnPage({
       // Build per-item DamageRow entries
       if (anyDamaged && onAddDamageRows) {
         const newRows: DamageRow[] = damagedItems.map((item, idx) => {
-          const pricePerDay = stockData.find((s) => s.name === item.name)?.pricePerDay ?? 0;
+          const replacementCost = stockData.find((s) => s.name === item.name)?.cost ?? 0;
           return {
             id: `dmg-${confirmReturnEvent.id}-${idx}-${Date.now()}`,
             itemName: item.name,
@@ -175,7 +178,7 @@ export default function IssueReturnPage({
             eventId: confirmReturnEvent.id,
             date: confirmReturnEvent.eventDate,
             qty: item.damagedQty,
-            cost: pricePerDay * item.damagedQty,
+            cost: replacementCost * item.damagedQty,
             status: "reported",
           };
         });

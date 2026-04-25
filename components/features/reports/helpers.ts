@@ -212,6 +212,31 @@ export function buildDocsExportData(rows: DocRow[]) {
   ];
 }
 
+export function buildFinanceExportData(
+  finance: FinanceSummary,
+  eventRows: EventReportRow[]
+) {
+  const approvedRows = eventRows.filter((e) => e.status.tone === "success");
+  const header = [
+    ["สรุปการเงิน", ""],
+    ["รายได้รวม (฿)", finance.totalRevenue],
+    ["จำนวน Event ที่อนุมัติ", finance.totalEvents],
+    ["รายได้เฉลี่ยต่อ Event (฿)", finance.avgPerEvent],
+    [],
+    ["รายละเอียด Event ที่อนุมัติ"],
+    ["ID", "ชื่อ Event", "บริษัท", "วันที่", "รายได้ (฿)", "จำนวนอุปกรณ์"],
+    ...approvedRows.map((e) => [
+      e.id,
+      e.title,
+      e.company,
+      e.date,
+      e.revenue,
+      e.equipmentCount,
+    ]),
+  ] as (string | number)[][];
+  return header;
+}
+
 export function buildDamageExportData(rows: DamageRow[]) {
   return [
     ["ID", "ชื่อ Event", "รหัส", "วันที่", "มูลค่าอุปกรณ์ (฿)", "สถานะ"],

@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react";
 import type { DamageRow } from "../types";
 import ReportsCard from "./ReportsCard";
 import ReportsExportButton from "./ReportsExportButton";
+import { fmtDateRangeThai } from "../../events/helpers";
 
 type Props = {
   rows: DamageRow[];
@@ -21,7 +22,6 @@ export default function DamageReportSection({ rows, onExport }: Props) {
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-50 ring-1 ring-emerald-100">
               <CheckCircle2 className="h-7 w-7 text-emerald-600" />
             </div>
-
             <div className="mt-4 text-sm font-semibold text-zinc-900">
               ไม่พบรายงานความเสียหาย
             </div>
@@ -31,7 +31,42 @@ export default function DamageReportSection({ rows, onExport }: Props) {
           </div>
         </div>
       ) : (
-        <div className="text-sm text-zinc-500">มีรายการความเสียหาย</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-100">
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">ชื่อ Event</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัส</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่จัดงาน</th>
+                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่าอุปกรณ์ (฿)</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500 pl-4">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-50">
+              {rows.map((row) => (
+                <tr key={row.id} className="hover:bg-zinc-50/60">
+                  <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
+                  <td className="py-3 text-zinc-500">{row.code}</td>
+                  <td className="py-3 text-zinc-500">{fmtDateRangeThai(row.date)}</td>
+                  <td className="py-3 text-right font-medium text-zinc-900">
+                    {row.cost.toLocaleString("th-TH")}
+                  </td>
+                  <td className="py-3 pl-4">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        row.status === "reported"
+                          ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                          : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                      }`}
+                    >
+                      {row.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </ReportsCard>
   );

@@ -225,12 +225,28 @@ async function ensureEquipmentHistoryTable(client?: PoolClient) {
   }
 }
 
+async function ensureSettingsTable(client?: PoolClient) {
+  const c = client ?? (await pool.connect());
+  try {
+    await c.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  } finally {
+    if (!client) c.release();
+  }
+}
+
 async function ensureTables(client?: PoolClient) {
   await ensureNotificationsTable(client);
   await ensureEventsTable(client);
   await ensureStockTable(client);
   await ensureStockHistoryTable(client);
   await ensureEquipmentHistoryTable(client);
+  await ensureSettingsTable(client);
 }
 
 export async function insertNotification(payload: {
@@ -581,6 +597,34 @@ export async function listStockHistory(limit = 100): Promise<StockHistoryRow[]> 
       [limit]
     );
     return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getSettings(): Promise<Record<string, unknown> | null> {
+  const client = await pool.connect();
+  try {
+    await ensureSettingsTable(client);
+    const res = await client.query<{ data: Record<string, unknown> }>(
+      `SELECT data FROM app_settings WHERE key = 'default' LIMIT 1`
+    );
+    return res.rows[0]?.data ?? null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function upsertSettings(data: Record<string, unknown>): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await ensureSettingsTable(client);
+    await client.query(
+      `INSERT INTO app_settings (key, data, updated_at)
+       VALUES ('default', $1::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET data = $1::jsonb, updated_at = NOW()`,
+      [JSON.stringify(data)]
+    );
   } finally {
     client.release();
   }

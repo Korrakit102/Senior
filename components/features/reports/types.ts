@@ -19,6 +19,7 @@ export type EventReportRow = {
   date: string;
   revenue: number;
   equipmentCount: number;
+  isDamaged?: boolean;
   status: {
     text: string;
     tone: "success" | "pending";

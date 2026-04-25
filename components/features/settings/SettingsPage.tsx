@@ -1,14 +1,9 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { SettingsState, SettingsTab } from "./types";
-import {
-  getSettingsSubtitle,
-  getSettingsTitle,
-  loadSettingsFromStorage,
-  resetSettingsToDefault,
-  saveSettingsToStorage,
-} from "./helpers";
+import { getSettingsSubtitle, getSettingsTitle, resetSettingsToDefault } from "./helpers";
+import { DEFAULT_SETTINGS } from "./constants";
 
 import SettingsHeader from "./components/SettingsHeader";
 import SettingsTabs from "./components/SettingsTabs";
@@ -17,20 +12,63 @@ import SettingsField from "./components/SettingsField";
 import SettingsTextArea from "./components/SettingsTextArea";
 import SettingsFooter from "./components/SettingsFooter";
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>("company");
-  const [data, setData] = useState<SettingsState>(loadSettingsFromStorage);
+  const [data, setData] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [isLoading, setIsLoading] = useState(true);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
-    setData(loadSettingsFromStorage());
+    const load = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (!res.ok) throw new Error("failed");
+        const json = (await res.json()) as SettingsState;
+        if (json?.company && json?.banking) setData(json);
+      } catch {
+        // keep DEFAULT_SETTINGS
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, []);
 
   useEffect(() => {
-    saveSettingsToStorage(data);
-  }, [data]);
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
+    if (isLoading) return;
 
-  const reset = () => {
-    setData(resetSettingsToDefault());
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error("failed");
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("error");
+      }
+    }, 800);
+
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [data, isLoading]);
+
+  const reset = async () => {
+    const defaults = resetSettingsToDefault();
+    setData(defaults);
   };
 
   const title = useMemo(() => getSettingsTitle(tab), [tab]);
@@ -212,7 +250,7 @@ export default function SettingsPage() {
           )}
         </SettingsCard>
 
-        <SettingsFooter onReset={reset} />
+        <SettingsFooter onReset={reset} saveStatus={saveStatus} />
       </div>
 
       <div className="h-10" />

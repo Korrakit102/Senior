@@ -13,6 +13,7 @@ import type {
   ReportTab,
 } from "./types";
 import {
+  buildDamageExportData,
   buildDocsExportData,
   buildEventsExportData,
   buildStockExportData,
@@ -40,6 +41,17 @@ import DocsReportSection from "./components/DocsReportSection";
 import ReportDocDetailModal from "./modals/ReportDocDetailModal";
 import ConfirmDeleteDocModal from "./modals/ConfirmDeleteDocModal";
 import AddDocModal from "./modals/AddDocModal";
+
+function daysBetween(range: string): number {
+  const parts = range.split(" - ");
+  if (parts.length < 2) return 1;
+  const a = parts[0].trim().split("-").map(Number);
+  const b = parts[1].trim().split("-").map(Number);
+  if (a.length < 3 || b.length < 3 || !a[0] || !b[0]) return 1;
+  const s = Date.UTC(a[0], a[1] - 1, a[2]);
+  const e = Date.UTC(b[0], b[1] - 1, b[2]);
+  return Math.max(1, Math.round((e - s) / 86400000) + 1);
+}
 
 type Props = {
   role: Role;
@@ -181,6 +193,7 @@ export default function ReportsPage({ role, stockData }: Props) {
           title: string;
           company: string;
           date: string;
+          isDamaged?: boolean;
           items: string;
           status: {
             text: string;
@@ -190,9 +203,10 @@ export default function ReportsPage({ role, stockData }: Props) {
         }>;
         setEventReportRows(
           rows.map((r) => {
+            const days = daysBetween(r.date);
             const revenue = Array.isArray(r.equipment)
               ? r.equipment.reduce(
-                  (sum, eq) => sum + eq.qty * eq.pricePerDayTHB,
+                  (sum, eq) => sum + eq.qty * eq.pricePerDayTHB * days,
                   0
                 )
               : 0;
@@ -202,6 +216,7 @@ export default function ReportsPage({ role, stockData }: Props) {
               company: r.company,
               date: r.date,
               revenue,
+              isDamaged: r.isDamaged === true,
               equipmentCount: Array.isArray(r.equipment)
                 ? r.equipment.length
                 : 0,
@@ -219,7 +234,21 @@ export default function ReportsPage({ role, stockData }: Props) {
     loadEvents();
   }, []);
 
-  const damageRows = useMemo(() => [] as DamageRow[], []);
+  const damageRows = useMemo<DamageRow[]>(
+    () =>
+      eventReportRows
+        .filter((e) => e.isDamaged)
+        .map((e) => ({
+          id: e.id,
+          itemName: e.title,
+          code: `#${e.id}`,
+          eventId: e.id,
+          date: e.date,
+          cost: e.revenue,
+          status: "reported" as const,
+        })),
+    [eventReportRows]
+  );
 
   const filteredStock = useMemo(
     () => filterStockRows(stockRows, query),
@@ -273,7 +302,11 @@ export default function ReportsPage({ role, stockData }: Props) {
   };
 
   const handleExportDamage = () => {
-    alert("ยังไม่มีรายการความเสียหายให้ส่งออก");
+    if (filteredDamage.length === 0) {
+      alert("ไม่มีรายการความเสียหายให้ส่งออก");
+      return;
+    }
+    exportToExcel("Damage Report", "damage-report", buildDamageExportData(filteredDamage));
   };
 
   const onAddDoc = () => setIsAddDocOpen(true);

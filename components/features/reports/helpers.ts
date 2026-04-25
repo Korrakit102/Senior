@@ -212,6 +212,20 @@ export function buildDocsExportData(rows: DocRow[]) {
   ];
 }
 
+export function buildDamageExportData(rows: DamageRow[]) {
+  return [
+    ["ID", "ชื่อ Event", "รหัส", "วันที่", "มูลค่าอุปกรณ์ (฿)", "สถานะ"],
+    ...rows.map((d) => [
+      d.id,
+      d.itemName,
+      d.code,
+      d.date,
+      d.cost,
+      d.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว",
+    ]),
+  ];
+}
+
 export function getDefaultFinanceSummary(): FinanceSummary {
   return {
     totalRevenue: 0,

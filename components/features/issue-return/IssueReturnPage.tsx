@@ -228,7 +228,7 @@ export default function IssueReturnPage({
 
       <QuickIssueModal open={isQuickIssueOpen} onClose={() => setIsQuickIssueOpen(false)} onConfirm={handleQuickIssue} equipmentOptions={equipmentOptions} />
       <QuickReturnModal open={isQuickReturnOpen} onClose={() => setIsQuickReturnOpen(false)} onConfirm={handleQuickReturn} equipmentOptions={equipmentOptions} />
-      <ConfirmIssueModal open={!!confirmIssueEvent} event={confirmIssueEvent} onConfirm={handleConfirmIssue} onCancel={() => setConfirmIssueEvent(null)} />
+      <ConfirmIssueModal open={!!confirmIssueEvent} event={confirmIssueEvent} equipmentItems={confirmIssueEvent ? (equipmentByEvent[confirmIssueEvent.id] ?? []) : []} onConfirm={handleConfirmIssue} onCancel={() => setConfirmIssueEvent(null)} />
       <ConfirmReturnModal
         open={!!confirmReturnEvent}
         event={confirmReturnEvent}

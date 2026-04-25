@@ -68,7 +68,10 @@ export default function CalendarDayEventsModal({
                         </div>
                         <div className="mt-1 text-xs text-zinc-500">{ev.code}</div>
                       </div>
-                      <EventStatusPill tone={ev.status.tone} text={ev.status.text} />
+                      <EventStatusPill
+                        tone={ev.isIssued ? "progress" : ev.status.tone}
+                        text={ev.isIssued ? "กำลังใช้งาน" : ev.status.text}
+                      />
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">

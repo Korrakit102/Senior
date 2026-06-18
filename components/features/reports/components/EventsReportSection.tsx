@@ -68,14 +68,17 @@ export default function EventsReportSection({
                 <ReportsActionDocButton
                   label="ใบแจ้งหนี้"
                   onClick={() => onOpenInvoice(e.id)}
+                  disabled={e.status.tone !== "success"}
                 />
                 <ReportsActionDocButton
                   label="ใบเสนอราคา"
                   onClick={() => onOpenQuotation(e.id)}
+                  disabled={e.status.tone !== "success"}
                 />
                 <ReportsActionDocButton
                   label="ใบสั่งงาน"
                   onClick={() => onOpenWorkOrder(e.id)}
+                  disabled={e.status.tone !== "success"}
                 />
               </div>
             </div>

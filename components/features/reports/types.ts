@@ -12,14 +12,32 @@ export type DocCategory =
   | "contract"
   | "other";
 
+export type EventEquipmentItem = {
+  name: string;
+  qty: number;
+  category: string;
+  pricePerDayTHB: number;
+};
+
 export type EventReportRow = {
   id: string;
   title: string;
   company: string;
   date: string;
+  startDate: string;
+  endDate: string;
+  place: string;
   revenue: number;
   equipmentCount: number;
   isDamaged?: boolean;
+  organizer?: string;
+  contactName?: string;
+  contactPhone?: string;
+  branchCode?: string;
+  budgetTHB?: number;
+  attendees?: number;
+  description?: string;
+  equipment: EventEquipmentItem[];
   status: {
     text: string;
     tone: "success" | "pending";

@@ -42,6 +42,8 @@ import DocsReportSection from "./components/DocsReportSection";
 import ReportDocDetailModal from "./modals/ReportDocDetailModal";
 import ConfirmDeleteDocModal from "./modals/ConfirmDeleteDocModal";
 import AddDocModal from "./modals/AddDocModal";
+import QuotationInvoiceModal from "./modals/QuotationInvoiceModal";
+import WorkOrderModal from "./modals/WorkOrderModal";
 
 function daysBetween(range: string): number {
   const parts = range.split(" - ");
@@ -71,6 +73,9 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [docCategory, setDocCategory] = useState<"all" | DocCategory>("all");
   const [docSort, setDocSort] = useState<"newest" | "oldest">("newest");
   const [eventReportRows, setEventReportRows] = useState<EventReportRow[]>([]);
+  const [invoiceEvent, setInvoiceEvent] = useState<EventReportRow | null>(null);
+  const [quotationEvent, setQuotationEvent] = useState<EventReportRow | null>(null);
+  const [workOrderEvent, setWorkOrderEvent] = useState<EventReportRow | null>(null);
 
   const [docsRows, setDocsRows] = useState<DocRow[]>([
     {
@@ -194,34 +199,52 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           id: string;
           title: string;
           company: string;
+          place: string;
           date: string;
           isDamaged?: boolean;
           items: string;
+          organizer?: string;
+          contactName?: string;
+          contactPhone?: string;
+          branchCode?: string;
+          budgetTHB?: number;
+          attendees?: number;
+          desc?: string;
           status: {
             text: string;
             tone: "success" | "pending" | "progress" | "rejected";
           };
-          equipment?: Array<{ qty: number; pricePerDayTHB: number }>;
+          equipment?: Array<{ name: string; qty: number; category: string; pricePerDayTHB: number }>;
         }>;
         setEventReportRows(
           rows.map((r) => {
+            const parts = r.date.split(" - ");
+            const startDate = parts[0]?.trim() ?? "";
+            const endDate = parts[1]?.trim() ?? "";
             const days = daysBetween(r.date);
-            const revenue = Array.isArray(r.equipment)
-              ? r.equipment.reduce(
-                  (sum, eq) => sum + eq.qty * eq.pricePerDayTHB * days,
-                  0
-                )
-              : 0;
+            const equipment = Array.isArray(r.equipment) ? r.equipment : [];
+            const revenue = equipment.reduce(
+              (sum, eq) => sum + eq.qty * eq.pricePerDayTHB * days, 0
+            );
             return {
               id: r.id,
               title: r.title,
               company: r.company,
+              place: r.place ?? "",
               date: r.date,
+              startDate,
+              endDate,
               revenue,
               isDamaged: r.isDamaged === true,
-              equipmentCount: Array.isArray(r.equipment)
-                ? r.equipment.length
-                : 0,
+              equipmentCount: equipment.length,
+              organizer: r.organizer,
+              contactName: r.contactName,
+              contactPhone: r.contactPhone,
+              branchCode: r.branchCode,
+              budgetTHB: r.budgetTHB,
+              attendees: r.attendees,
+              description: r.desc,
+              equipment,
               status: {
                 text: r.status.text,
                 tone: (r.status.tone === "success" || r.status.tone === "progress") ? "success" : "pending",
@@ -341,15 +364,15 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   };
 
   const onOpenInvoice = (id: string) => {
-    alert(`ใบแจ้งหนี้: ${id}`);
+    setInvoiceEvent(eventReportRows.find((r) => r.id === id) ?? null);
   };
 
   const onOpenQuotation = (id: string) => {
-    alert(`ใบเสนอราคา: ${id}`);
+    setQuotationEvent(eventReportRows.find((r) => r.id === id) ?? null);
   };
 
   const onOpenWorkOrder = (id: string) => {
-    alert(`ใบสั่งงาน: ${id}`);
+    setWorkOrderEvent(eventReportRows.find((r) => r.id === id) ?? null);
   };
 
   return (
@@ -454,6 +477,26 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         open={isAddDocOpen}
         onClose={() => setIsAddDocOpen(false)}
         onConfirm={(doc) => setDocsRows((prev) => [doc, ...prev])}
+      />
+
+      <QuotationInvoiceModal
+        open={invoiceEvent !== null}
+        docType="invoice"
+        event={invoiceEvent}
+        onClose={() => setInvoiceEvent(null)}
+      />
+
+      <QuotationInvoiceModal
+        open={quotationEvent !== null}
+        docType="quotation"
+        event={quotationEvent}
+        onClose={() => setQuotationEvent(null)}
+      />
+
+      <WorkOrderModal
+        open={workOrderEvent !== null}
+        event={workOrderEvent}
+        onClose={() => setWorkOrderEvent(null)}
       />
 
       <ReportDocDetailModal

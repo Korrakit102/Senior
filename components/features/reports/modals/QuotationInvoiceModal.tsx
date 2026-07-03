@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { X, Download } from "lucide-react";
 import type { EventReportRow } from "../types";
 
@@ -57,6 +57,8 @@ function todayTH(): string {
 
 export default function QuotationInvoiceModal({ open, docType, event, onClose }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [includeVat, setIncludeVat] = useState(true);
+  const [includeWht, setIncludeWht] = useState(true);
 
   const docTitle = docType === "quotation" ? "ใบเสนอราคา" : "ใบแจ้งหนี้";
   const docPrefix = docType === "quotation" ? "QUO" : "INV";
@@ -101,9 +103,9 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
     s.reduce((sum, eq) => sum + eq.qty * eq.pricePerDayTHB * numDays, 0)
   );
   const grandTotal = sectionTotals.reduce((a, b) => a + b, 0);
-  const vat = grandTotal * 0.07;
-  const wht = grandTotal * 0.03;
-  const netTotal = grandTotal + vat;
+  const vat = includeVat ? grandTotal * 0.07 : 0;
+  const wht = includeWht ? grandTotal * 0.03 : 0;
+  const netTotal = grandTotal + vat - wht;
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-8">
@@ -129,6 +131,29 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
           </div>
         </div>
 
+        {/* Tax options */}
+        <div className="flex items-center gap-6 border-b border-zinc-100 bg-zinc-50 px-6 py-3">
+          <span className="text-xs font-medium text-zinc-500">ตัวเลือกภาษี:</span>
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeVat}
+              onChange={(e) => setIncludeVat(e.target.checked)}
+              className="h-4 w-4 accent-red-600"
+            />
+            <span className="text-sm font-medium text-zinc-700">VAT 7%</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeWht}
+              onChange={(e) => setIncludeWht(e.target.checked)}
+              className="h-4 w-4 accent-red-600"
+            />
+            <span className="text-sm font-medium text-zinc-700">หัก ณ ที่จ่าย 3%</span>
+          </label>
+        </div>
+
         {/* Document preview */}
         <div className="p-6">
           <div
@@ -148,6 +173,8 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
               vat={vat}
               wht={wht}
               netTotal={netTotal}
+              includeVat={includeVat}
+              includeWht={includeWht}
               fmt={fmt}
               fmtDate={fmtDate}
             />
@@ -161,12 +188,13 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
 /* ─── Document content (rendered both on-screen & in print window) ─── */
 function DocContent({
   docTitle, docNo, today, event, numDays, sections, sectionTotals,
-  grandTotal, vat, wht, netTotal, fmt, fmtDate,
+  grandTotal, vat, wht, netTotal, includeVat, includeWht, fmt, fmtDate,
 }: {
   docTitle: string; docNo: string; today: string;
   event: EventReportRow; numDays: number;
   sections: EventReportRow["equipment"][]; sectionTotals: number[];
   grandTotal: number; vat: number; wht: number; netTotal: number;
+  includeVat: boolean; includeWht: boolean;
   fmt: (n: number) => string; fmtDate: (d: string) => string;
 }) {
   const s = (v?: string | null) => v || "-";
@@ -256,9 +284,9 @@ function DocContent({
           <div style={{ fontWeight: 600, marginBottom: 6 }}>หมายเหตุ / เงื่อนไขการชำระเงิน</div>
           <ul style={{ paddingLeft: 14, color: "#555", lineHeight: 1.8, margin: 0 }}>
             <li>ยืนยันราคา 3 วันนับจากวันที่เสนอราคา</li>
-            <li>ภาษีหัก ณ ที่จ่าย 3%</li>
-            <li>ภาษีมูลค่าเพิ่ม 7%</li>
-            <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย 3% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>
+            {includeWht && <li>ภาษีหัก ณ ที่จ่าย 3%</li>}
+            {includeVat && <li>ภาษีมูลค่าเพิ่ม 7%</li>}
+            {includeWht && <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย 3% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>}
           </ul>
           <div style={{ marginTop: 10, fontWeight: 600 }}>ข้อมูลการชำระเงิน</div>
           <div style={{ color: "#555", lineHeight: 1.8, marginTop: 4 }}>
@@ -274,8 +302,8 @@ function DocContent({
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <tbody>
               <TotalRow label="Total Amount รวม" value={fmt(grandTotal)} />
-              <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />
-              <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />
+              {includeVat && <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />}
+              {includeWht && <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />}
               <tr style={{ borderTop: "2px solid #dc2626" }}>
                 <td style={{ padding: "6px 6px", fontWeight: 700 }}>จำนวนเงินทั้งสิ้น</td>
                 <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 700, fontSize: 14, color: "#dc2626" }}>{fmt(netTotal)}</td>

@@ -12,7 +12,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const body = await req.json().catch(() => null);
 
-  // ─── Case 1: อัปเดต issueStatus (inuse / returned / ready) ───────────────
+  // ─── อัปเดต issueStatus (inuse / returned / ready) ─────────────────────────
   if (body?.issueStatus) {
     if (!["ready", "inuse", "returned"].includes(body.issueStatus)) {
       return NextResponse.json({ error: "invalid issueStatus" }, { status: 400 });
@@ -32,7 +32,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     return NextResponse.json({ ok: true });
   }
 
-  // ─── Case 3: อนุมัติ / ไม่อนุมัติ Event (ต้องมี startDate, endDate, equipment) ───
+  // ─── อนุมัติ / ไม่อนุมัติ Event (ต้องมี startDate, endDate, equipment) ─────────
   if (!body?.startDate || !body?.endDate || !Array.isArray(body?.equipment) || !body?.decision) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }

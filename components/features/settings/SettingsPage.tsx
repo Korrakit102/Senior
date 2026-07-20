@@ -2,7 +2,12 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { SettingsState, SettingsTab } from "./types";
-import { getSettingsSubtitle, getSettingsTitle, resetSettingsToDefault } from "./helpers";
+import {
+  getSettingsSubtitle,
+  getSettingsTitle,
+  normalizeLegacySettings,
+  resetSettingsToDefault,
+} from "./helpers";
 import { DEFAULT_SETTINGS } from "./constants";
 
 import SettingsHeader from "./components/SettingsHeader";
@@ -28,7 +33,7 @@ export default function SettingsPage() {
         const res = await fetch("/api/settings");
         if (!res.ok) throw new Error("failed");
         const json = (await res.json()) as SettingsState;
-        if (json?.company && json?.banking) setData(json);
+        if (json?.company && json?.banking) setData(normalizeLegacySettings(json));
       } catch {
         // keep DEFAULT_SETTINGS
       } finally {
@@ -88,7 +93,7 @@ export default function SettingsPage() {
           {tab === "company" && (
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <SettingsField
-                label="Company Name (TH)"
+                label="ชื่อบริษัท (ไทย)"
                 required
                 value={company.companyNameTH}
                 onChange={(v) =>
@@ -100,7 +105,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Company Name (EN)"
+                label="ชื่อบริษัท (อังกฤษ)"
                 required
                 value={company.companyNameEN}
                 onChange={(v) =>
@@ -113,7 +118,7 @@ export default function SettingsPage() {
 
               <div className="md:col-span-2">
                 <SettingsField
-                  label="Tagline"
+                  label="คำโปรย"
                   value={company.tagline}
                   onChange={(v) =>
                     setData((s) => ({
@@ -126,7 +131,7 @@ export default function SettingsPage() {
 
               <div className="md:col-span-2">
                 <SettingsTextArea
-                  label="Address"
+                  label="ที่อยู่"
                   value={company.address}
                   onChange={(v) =>
                     setData((s) => ({
@@ -139,7 +144,7 @@ export default function SettingsPage() {
               </div>
 
               <SettingsField
-                label="Tax ID"
+                label="เลขประจำตัวผู้เสียภาษี"
                 value={company.taxId}
                 onChange={(v) =>
                   setData((s) => ({
@@ -150,7 +155,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Phone"
+                label="เบอร์โทรศัพท์"
                 value={company.phone}
                 onChange={(v) =>
                   setData((s) => ({
@@ -161,7 +166,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Email"
+                label="อีเมล"
                 value={company.email}
                 onChange={(v) =>
                   setData((s) => ({
@@ -173,7 +178,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Website"
+                label="เว็บไซต์"
                 value={company.website}
                 onChange={(v) =>
                   setData((s) => ({
@@ -188,7 +193,7 @@ export default function SettingsPage() {
           {tab === "banking" && (
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
               <SettingsField
-                label="Bank Name"
+                label="ชื่อธนาคาร"
                 required
                 value={banking.bankName}
                 onChange={(v) =>
@@ -200,7 +205,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Account Name"
+                label="ชื่อบัญชี"
                 required
                 value={banking.accountName}
                 onChange={(v) =>
@@ -212,7 +217,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Account Number"
+                label="เลขที่บัญชี"
                 required
                 value={banking.accountNumber}
                 onChange={(v) =>
@@ -224,7 +229,7 @@ export default function SettingsPage() {
               />
 
               <SettingsField
-                label="Branch"
+                label="สาขา"
                 value={banking.branch}
                 onChange={(v) =>
                   setData((s) => ({
@@ -236,7 +241,7 @@ export default function SettingsPage() {
 
               <div className="md:col-span-2">
                 <SettingsField
-                  label="SWIFT Code"
+                  label="รหัส SWIFT"
                   value={banking.swiftCode}
                   onChange={(v) =>
                     setData((s) => ({

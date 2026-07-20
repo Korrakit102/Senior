@@ -16,7 +16,7 @@ export default function SettingsFooter({
     <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
       <div className="flex items-center gap-2 text-xs">
         {saveStatus === "idle" && (
-          <span className="text-zinc-400">บันทึกอัตโนมัติลง database</span>
+          <span className="text-zinc-400">บันทึกอัตโนมัติลงฐานข้อมูล</span>
         )}
         {saveStatus === "saving" && (
           <>
@@ -44,7 +44,7 @@ export default function SettingsFooter({
         className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 shadow-sm hover:bg-red-50"
       >
         <RotateCcw className="h-4 w-4" />
-        Reset to Default
+        รีเซ็ตเป็นค่าเริ่มต้น
       </button>
     </div>
   );

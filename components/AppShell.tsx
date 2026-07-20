@@ -236,56 +236,56 @@ const tabsByRole: Record<
   SA: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
   ],
   Manager: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
     {
       key: "stock",
-      label: "Stock",
+      label: "สต็อก",
       icon: <Boxes className="h-4 w-4" />,
     },
     {
       key: "issueReturn",
-      label: "Issue/Return",
+      label: "เบิก/คืน",
       icon: <ArrowLeftRight className="h-4 w-4" />,
     },
     {
       key: "reports",
-      label: "Reports",
+      label: "รายงาน",
       icon: <BarChart3 className="h-4 w-4" />,
     },
     {
       key: "settings",
-      label: "Settings",
+      label: "ตั้งค่า",
       icon: <Settings className="h-4 w-4" />,
     },
   ],
   Stockkeeper: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
     {
       key: "stock",
-      label: "Stock",
+      label: "สต็อก",
       icon: <Boxes className="h-4 w-4" />,
     },
     {
       key: "issueReturn",
-      label: "Issue/Return",
+      label: "เบิก/คืน",
       icon: <ArrowLeftRight className="h-4 w-4" />,
     },
     {
       key: "reports",
-      label: "Reports",
+      label: "รายงาน",
       icon: <BarChart3 className="h-4 w-4" />,
     },
   ],
@@ -816,7 +816,7 @@ export default function AppShell() {
         )}
         {tab === "settings" && role === "Manager" && <SettingsPage />}
         {tab === "settings" && role !== "Manager" && (
-          <div className="px-6 py-10 text-sm text-zinc-500">Manager Only</div>
+          <div className="px-6 py-10 text-sm text-zinc-500">สำหรับผู้จัดการเท่านั้น</div>
         )}
       </div>
     </div>

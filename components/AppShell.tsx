@@ -428,47 +428,43 @@ export default function AppShell() {
     });
   };
 
+  // Calls the server to perform an atomic stock adjustment, then merges updated rows into local state
+  const callAdjustStock = async (
+    action: "deduct" | "return" | "damage",
+    items: { name: string; qty: number }[]
+  ) => {
+    try {
+      const res = await fetch("/api/stock", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, items }),
+      });
+      if (!res.ok) throw new Error("adjust failed");
+      const { items: updated } = (await res.json()) as {
+        items: Array<{ id: string; available: number; status: string }>;
+      };
+      setStockData((prev) =>
+        prev.map((row) => {
+          const found = updated.find((u) => u.id === row.id);
+          if (!found) return row;
+          return { ...row, available: found.available, status: toItemStatus(found.status) };
+        })
+      );
+    } catch {
+      setStockSaveError(true);
+    }
+  };
+
   const deductStock = (equipmentList: { name: string; qty: number }[]) => {
-    applyStockChange((prev) =>
-      prev.map((row) => {
-        const match = equipmentList.find((eq) => eq.name === row.name);
-        if (!match) return row;
-        const newAvailable = Math.max(0, row.available - match.qty);
-        return {
-          ...row,
-          available: newAvailable,
-          status: newAvailable === 0 ? "ใช้งานอยู่" : row.status,
-        };
-      })
-    );
+    callAdjustStock("deduct", equipmentList);
   };
 
   const returnStock = (equipmentList: { name: string; qty: number }[]) => {
-    applyStockChange((prev) =>
-      prev.map((row) => {
-        const match = equipmentList.find((eq) => eq.name === row.name);
-        if (!match) return row;
-        const newAvailable = Math.min(row.qty, row.available + match.qty);
-        return {
-          ...row,
-          available: newAvailable,
-          status: newAvailable > 0 ? "พร้อมใช้" : row.status,
-        };
-      })
-    );
+    callAdjustStock("return", equipmentList);
   };
 
   const markDamagedStock = (equipmentList: { name: string; qty: number }[]) => {
-    applyStockChange((prev) =>
-      prev.map((row) => {
-        const match = equipmentList.find((eq) => eq.name === row.name);
-        if (!match) return row;
-        return {
-          ...row,
-          status: "ซ่อมแซม",
-        };
-      })
-    );
+    callAdjustStock("damage", equipmentList);
   };
 
   const markEventAsIssued = (eventId: string) => {

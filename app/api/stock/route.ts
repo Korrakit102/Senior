@@ -1,7 +1,8 @@
 "use server";
 
 import { NextRequest, NextResponse } from "next/server";
-import { listStockItems, replaceStockItems } from "@/lib/db";
+import { adjustStock, listStockItems, upsertStockItems } from "@/lib/db";
+import type { StockRowDb } from "@/lib/db";
 
 type StockApiRow = {
   id: string;
@@ -18,7 +19,7 @@ type StockApiRow = {
   cost: number;
 };
 
-function mapFromDb(row: Awaited<ReturnType<typeof listStockItems>>[number]): StockApiRow {
+function mapFromDb(row: StockRowDb): StockApiRow {
   return {
     id: row.id,
     code: row.code,
@@ -35,52 +36,12 @@ function mapFromDb(row: Awaited<ReturnType<typeof listStockItems>>[number]): Sto
   };
 }
 
-// ✅ เปรียบเทียบ qty เดิมกับใหม่ แล้วสร้าง history entries
-function buildHistoryEntries(
-  previousRows: Awaited<ReturnType<typeof listStockItems>>,
-  nextRows: StockApiRow[]
-): Array<{
-  id: string;
-  stockId: string;
-  stockCode: string;
-  stockName: string;
-  fieldName: string;
-  changeType: "increase" | "decrease";
-  oldValue: number;
-  newValue: number;
-  delta: number;
-  createdAt: string;
-}> {
-  const previousById = new Map(previousRows.map((row) => [row.id, row]));
-  const createdAt = new Date().toISOString();
-
-  return nextRows.flatMap((row) => {
-    const previous = previousById.get(row.id);
-    if (!previous || previous.qty === row.qty) return [];
-
-    const delta = row.qty - previous.qty;
-    return [
-      {
-        id: `STH-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
-        stockId: row.id,
-        stockCode: row.code,
-        stockName: row.name,
-        fieldName: "qty",
-        changeType: delta > 0 ? "increase" : "decrease",
-        oldValue: previous.qty,
-        newValue: row.qty,
-        delta,
-        createdAt,
-      },
-    ];
-  });
-}
-
 export async function GET() {
   const rows = await listStockItems();
   return NextResponse.json(rows.map(mapFromDb));
 }
 
+// Full stock sync from the management page (add / edit / delete items)
 export async function PUT(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!Array.isArray(body?.items)) {
@@ -88,23 +49,41 @@ export async function PUT(req: NextRequest) {
   }
 
   const items = body.items as StockApiRow[];
-  const valid = items.every((it) =>
-    it?.id && it?.code && it?.name && it?.brand && it?.category &&
-    it?.system && it?.zone && it?.status &&
-    typeof it?.qty === "number" &&
-    typeof it?.available === "number" &&
-    typeof it?.pricePerDay === "number" &&
-    typeof it?.cost === "number"
+  const valid = items.every(
+    (it) =>
+      it?.id && it?.code && it?.name && it?.brand && it?.category &&
+      it?.system && it?.zone && it?.status &&
+      typeof it?.qty === "number" &&
+      typeof it?.available === "number" &&
+      typeof it?.pricePerDay === "number" &&
+      typeof it?.cost === "number"
   );
-
   if (!valid) {
     return NextResponse.json({ error: "invalid stock items" }, { status: 400 });
   }
 
-  // ✅ ดึงข้อมูลเดิมก่อน แล้วสร้าง history
-  const currentRows = await listStockItems();
-  const historyEntries = buildHistoryEntries(currentRows, items);
-
-  await replaceStockItems(items, historyEntries);
+  await upsertStockItems(items);
   return NextResponse.json({ ok: true, count: items.length });
+}
+
+// Atomic stock adjustment triggered by event approve / issue / return / damage
+export async function PATCH(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  const action = body?.action as string | undefined;
+  if (!["deduct", "return", "damage"].includes(action ?? "")) {
+    return NextResponse.json({ error: "invalid action" }, { status: 400 });
+  }
+  if (!Array.isArray(body?.items)) {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+  const items = body.items as Array<{ name: string; qty: number }>;
+  const valid = items.every(
+    (i) => typeof i?.name === "string" && typeof i?.qty === "number"
+  );
+  if (!valid) {
+    return NextResponse.json({ error: "invalid items" }, { status: 400 });
+  }
+
+  const updated = await adjustStock(items, action as "deduct" | "return" | "damage");
+  return NextResponse.json({ items: updated.map(mapFromDb) });
 }

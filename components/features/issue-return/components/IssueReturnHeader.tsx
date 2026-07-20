@@ -17,7 +17,7 @@ export default function IssueReturnHeader({
           เบิก/คืนอุปกรณ์
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          จัดการการเบิกและคืนอุปกรณ์สำหรับ Events พร้อมหลักฐานรูปภาพ
+          จัดการการเบิกและคืนอุปกรณ์สำหรับอีเวนต์ พร้อมหลักฐานรูปภาพ
         </p>
       </div>
 

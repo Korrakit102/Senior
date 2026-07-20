@@ -89,7 +89,7 @@ export default function QuickReturnModal({
             <div className="flex items-start justify-between gap-3 p-5">
               <div>
                 <div className="text-lg font-semibold text-zinc-900">
-                  Quick Return Equipment
+                  คืนอุปกรณ์ด่วน
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
                   คืนอุปกรณ์เร่งด่วน พร้อมหลักฐานรูปภาพ

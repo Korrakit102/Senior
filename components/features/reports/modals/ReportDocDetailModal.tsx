@@ -81,7 +81,7 @@ export default function ReportDocDetailModal({
 
         <div className="mt-4 rounded-xl bg-zinc-50 p-4">
           <div className="text-xs font-semibold text-zinc-500">
-            Event / บริษัท
+            อีเวนต์ / บริษัท
           </div>
           <div className="mt-2 whitespace-pre-line text-sm text-zinc-900">
             {selectedDoc.eventOrCompany}

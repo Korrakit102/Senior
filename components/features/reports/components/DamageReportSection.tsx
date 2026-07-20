@@ -36,7 +36,7 @@ export default function DamageReportSection({ rows, onExport }: Props) {
             <thead>
               <tr className="border-b border-zinc-100">
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">อุปกรณ์</th>
-                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัส Event</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัสอีเวนต์</th>
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>

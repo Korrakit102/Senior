@@ -38,7 +38,7 @@ export default function ConfirmDeleteEventModal({
           <div className="flex items-start justify-between gap-3 p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">
-                ยืนยันการลบ Event
+                ยืนยันการลบอีเวนต์
               </div>
               <div className="mt-1 text-sm text-zinc-500">
                 กรุณาตรวจสอบก่อนลบรายการ
@@ -63,7 +63,7 @@ export default function ConfirmDeleteEventModal({
 
                 <div className="min-w-0">
                   <div className="text-sm font-semibold text-zinc-900">
-                    คุณต้องการลบ Event นี้ใช่หรือไม่?
+                    คุณต้องการลบอีเวนต์นี้ใช่หรือไม่?
                   </div>
                   <div className="mt-1 text-sm text-zinc-700">
                     <span className="font-semibold text-red-600">
@@ -71,7 +71,7 @@ export default function ConfirmDeleteEventModal({
                     </span>
                   </div>
                   <div className="mt-2 text-xs text-zinc-500">
-                    หาก Event นี้เคยอนุมัติอุปกรณ์แล้ว ระบบจะคืนจำนวนอุปกรณ์กลับเข้า Stock
+                    หากอีเวนต์นี้เคยอนุมัติอุปกรณ์แล้ว ระบบจะคืนจำนวนอุปกรณ์กลับเข้าสต็อก
                   </div>
                 </div>
               </div>
@@ -90,7 +90,7 @@ export default function ConfirmDeleteEventModal({
                 className="inline-flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
               >
                 <Trash2 className="h-4 w-4" />
-                ลบ Event
+                ลบอีเวนต์
               </button>
             </div>
           </div>

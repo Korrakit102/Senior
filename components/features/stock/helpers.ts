@@ -67,7 +67,7 @@ export function exportStockToExcel(rows: StockRow[]) {
     .then((XLSX) => {
       const data = [
         [
-          "ID",
+          "รหัสระบบ",
           "รหัส",
           "ชื่ออุปกรณ์",
           "ยี่ห้อ",
@@ -117,7 +117,7 @@ export function exportStockToExcel(rows: StockRow[]) {
       ];
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Stock");
+      XLSX.utils.book_append_sheet(wb, ws, "สต็อก");
       XLSX.writeFile(wb, `stock-${new Date().toISOString().split("T")[0]}.xlsx`);
     })
     .catch(() => {

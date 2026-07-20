@@ -58,14 +58,14 @@ export function getSearchPlaceholder(tab: ReportTab) {
   }
 
   if (tab === "events") {
-    return "ค้นหา Event, บริษัท...";
+    return "ค้นหาอีเวนต์, บริษัท...";
   }
 
   if (tab === "damage") {
-    return "ค้นหาอุปกรณ์ที่เสียหาย, รหัส, Event...";
+    return "ค้นหาอุปกรณ์ที่เสียหาย, รหัส, อีเวนต์...";
   }
 
-  return "ค้นหาเอกสาร, Event, บริษัท...";
+  return "ค้นหาเอกสาร, อีเวนต์, บริษัท...";
 }
 
 export function getDocStats(docsRows: DocRow[]) {
@@ -169,8 +169,8 @@ export function buildStockExportData(rows: StockReportRow[]) {
 export function buildEventsExportData(rows: EventReportRow[]) {
   return [
     [
-      "ID",
-      "ชื่อ Event",
+      "รหัส",
+      "ชื่ออีเวนต์",
       "บริษัท",
       "วันที่",
       "สถานะ",
@@ -192,11 +192,11 @@ export function buildEventsExportData(rows: EventReportRow[]) {
 export function buildDocsExportData(rows: DocRow[]) {
   return [
     [
-      "ID",
+      "รหัสเอกสาร",
       "ชื่อเอกสาร",
       "ทีม",
       "หมวดหมู่",
-      "Event / บริษัท",
+      "อีเวนต์ / บริษัท",
       "คำอธิบาย",
       "วันที่อัปโหลด",
     ],
@@ -220,11 +220,11 @@ export function buildFinanceExportData(
   const header = [
     ["สรุปการเงิน", ""],
     ["รายได้รวม (฿)", finance.totalRevenue],
-    ["จำนวน Event ที่อนุมัติ", finance.totalEvents],
-    ["รายได้เฉลี่ยต่อ Event (฿)", finance.avgPerEvent],
+    ["จำนวนอีเวนต์ที่อนุมัติ", finance.totalEvents],
+    ["รายได้เฉลี่ยต่ออีเวนต์ (฿)", finance.avgPerEvent],
     [],
-    ["รายละเอียด Event ที่อนุมัติ"],
-    ["ID", "ชื่อ Event", "บริษัท", "วันที่", "รายได้ (฿)", "จำนวนอุปกรณ์"],
+    ["รายละเอียดอีเวนต์ที่อนุมัติ"],
+    ["รหัส", "ชื่ออีเวนต์", "บริษัท", "วันที่", "รายได้ (฿)", "จำนวนอุปกรณ์"],
     ...approvedRows.map((e) => [
       e.id,
       e.title,
@@ -239,7 +239,7 @@ export function buildFinanceExportData(
 
 export function buildDamageExportData(rows: DamageRow[]) {
   return [
-    ["ID", "ชื่อ Event", "รหัส", "วันที่", "มูลค่าอุปกรณ์ (฿)", "สถานะ"],
+    ["รหัส", "ชื่ออีเวนต์", "รหัสอุปกรณ์", "วันที่", "มูลค่าอุปกรณ์ (฿)", "สถานะ"],
     ...rows.map((d) => [
       d.id,
       d.itemName,

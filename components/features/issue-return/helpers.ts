@@ -56,7 +56,7 @@ export function getInUseList(events: IssueEvent[]) {
   return events.filter((e) => e.status === "inuse");
 }
 
-// Return tab แสดง event เดียวกับ inuse tab แต่ให้ Stockkeeper กด "คืนอุปกรณ์" ได้
+// แท็บคืนอุปกรณ์แสดงอีเวนต์เดียวกับแท็บกำลังใช้งาน เพื่อให้เจ้าหน้าที่คลังกดคืนอุปกรณ์ได้
 export function getReturnList(events: IssueEvent[]) {
   return getInUseList(events);
 }
@@ -73,9 +73,9 @@ export function getVisibleList(
 }
 
 export function getEmptyStateText(tab: TabKey) {
-  if (tab === "issue") return "ไม่มี Event ที่รอ Issue";
-  if (tab === "inuse") return "ไม่มี Event ที่กำลังใช้งาน";
-  return "ไม่มี Event ที่รอคืนอุปกรณ์";
+  if (tab === "issue") return "ไม่มีอีเวนต์ที่รอเบิกอุปกรณ์";
+  if (tab === "inuse") return "ไม่มีอีเวนต์ที่กำลังใช้งาน";
+  return "ไม่มีอีเวนต์ที่รอคืนอุปกรณ์";
 }
 
 export function mapApiEventsToIssueEvents(

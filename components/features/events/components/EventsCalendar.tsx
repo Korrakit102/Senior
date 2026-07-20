@@ -54,7 +54,7 @@ export default function EventsCalendar({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-        <EventDayLegendDot cls="bg-rose-500" label="วันที่มี Event" />
+        <EventDayLegendDot cls="bg-rose-500" label="วันที่มีอีเวนต์" />
         <EventDayLegendDot cls="bg-blue-500" label="วันนี้" />
         <EventDayLegendDot cls="bg-amber-500" label="รออนุมัติ" />
         <EventDayLegendDot cls="bg-emerald-500" label="อนุมัติแล้ว" />

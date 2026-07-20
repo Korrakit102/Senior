@@ -31,7 +31,7 @@ export default function EventsToolbar({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-600"
-            placeholder="ค้นหา Event ด้วย ชื่อ, บริษัท, ผู้จัด, สถานที่..."
+            placeholder="ค้นหาอีเวนต์ด้วยชื่อ บริษัท ผู้จัด หรือสถานที่..."
           />
         </div>
 

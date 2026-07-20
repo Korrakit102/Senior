@@ -92,8 +92,8 @@ export default function EventDetailModal({
         <div className="w-full max-w-5xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
           <div className="flex items-start justify-between gap-3 p-5">
             <div className="min-w-0">
-              <div className="text-lg font-semibold text-zinc-900">รายละเอียด Event</div>
-              <div className="mt-1 text-sm text-zinc-500">ข้อมูลพื้นฐานของ Event</div>
+              <div className="text-lg font-semibold text-zinc-900">รายละเอียดอีเวนต์</div>
+              <div className="mt-1 text-sm text-zinc-500">ข้อมูลพื้นฐานของอีเวนต์</div>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <div className="truncate text-xl font-semibold text-zinc-900">
                   {event.title}
@@ -105,7 +105,7 @@ export default function EventDetailModal({
             <button
               onClick={onClose}
               className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-              title="Close"
+              title="ปิด"
             >
               <X className="h-4 w-4" />
             </button>
@@ -168,7 +168,7 @@ export default function EventDetailModal({
 
                 <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">
                   <User className="h-4 w-4" />
-                  Customer Name
+                  ชื่อลูกค้า
                 </div>
                 <div className="mt-1 text-sm font-semibold text-zinc-900">
                   {event.organizer || "-"}
@@ -176,7 +176,7 @@ export default function EventDetailModal({
 
                 <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">
                   <User className="h-4 w-4" />
-                  Contact Name
+                  ชื่อผู้ติดต่อ
                 </div>
                 <div className="mt-1 text-sm font-semibold text-zinc-900">
                   {event.contactName || "-"}
@@ -184,7 +184,7 @@ export default function EventDetailModal({
 
                 <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">
                   <Phone className="h-4 w-4" />
-                  Contact Phone
+                  เบอร์โทรผู้ติดต่อ
                 </div>
                 <div className="mt-1 text-sm font-semibold text-zinc-900">
                   {event.contactPhone || "-"}

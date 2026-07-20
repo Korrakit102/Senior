@@ -123,11 +123,11 @@ export default function IssueReturnPage({
       if (!res.ok) throw new Error("failed to update issue status");
       setEvents((prev) => prev.map((e) => e.id === confirmIssueEvent.id ? { ...e, status: "inuse" } : e));
       onMarkEventAsIssued?.(confirmIssueEvent.id);
-      setToast(`✅ Issue สำเร็จ: "${confirmIssueEvent.title}"`);
+      setToast(`✅ เบิกอุปกรณ์สำเร็จ: "${confirmIssueEvent.title}"`);
       setConfirmIssueEvent(null);
       setTab("inuse");
     } catch {
-      setToast("ไม่สามารถบันทึกสถานะ In Use ได้");
+      setToast("ไม่สามารถบันทึกสถานะกำลังใช้งานได้");
     }
   };
 
@@ -201,14 +201,14 @@ export default function IssueReturnPage({
       }
       setConfirmReturnEvent(null);
     } catch {
-      setToast("ไม่สามารถบันทึกสถานะ Return ได้");
+      setToast("ไม่สามารถบันทึกสถานะคืนอุปกรณ์ได้");
       setConfirmReturnEvent(null);
     }
   };
 
   const handleQuickIssue = (items: EquipmentItem[]) => {
     onDeductStock(items.map((i) => ({ name: i.name, qty: i.qty })));
-    setToast(`✅ Quick Issue สำเร็จ: ${items.map((i) => i.name).join(", ")}`);
+    setToast(`✅ เบิกอุปกรณ์ด่วนสำเร็จ: ${items.map((i) => i.name).join(", ")}`);
   };
 
   const handleQuickReturn = (items: EquipmentItem[], damaged: boolean, photos: File[]) => {
@@ -219,9 +219,9 @@ export default function IssueReturnPage({
     }
     const names = items.map((i) => i.name).join(", ");
     if (damaged) {
-      setToast(`✅ Quick Return แล้ว (ส่งซ่อม): ${names}${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`);
+      setToast(`✅ คืนอุปกรณ์ด่วนแล้ว (ส่งซ่อม): ${names}${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`);
     } else {
-      setToast(`✅ Quick Return สำเร็จ: ${names}`);
+      setToast(`✅ คืนอุปกรณ์ด่วนสำเร็จ: ${names}`);
     }
   };
 

@@ -22,13 +22,13 @@ export default function EventsList({
     <div className="mt-5 space-y-4">
       {isLoading && (
         <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500 shadow-sm">
-          กำลังโหลดข้อมูล Event...
+          กำลังโหลดข้อมูลอีเวนต์...
         </div>
       )}
 
       {!isLoading && events.length === 0 && (
         <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center text-sm text-zinc-500">
-          ไม่พบรายการ Event
+          ไม่พบรายการอีเวนต์
         </div>
       )}
 

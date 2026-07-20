@@ -69,7 +69,7 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
     const content = printRef.current.innerHTML;
     const filename = `${docNo}_${docTitle}`;
     const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { alert("กรุณาอนุญาต popup ในเบราว์เซอร์เพื่อ export PDF"); return; }
+    if (!win) { alert("กรุณาอนุญาตป๊อปอัปในเบราว์เซอร์เพื่อส่งออก PDF"); return; }
     win.document.write(`<!DOCTYPE html>
 <html><head>
   <meta charset="UTF-8"><title>${filename}</title>
@@ -123,7 +123,7 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
               className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
             >
               <Download className="h-4 w-4" />
-              Download PDF
+              ดาวน์โหลด PDF
             </button>
             <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-100">
               <X className="h-4 w-4" />
@@ -141,7 +141,7 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
               onChange={(e) => setIncludeVat(e.target.checked)}
               className="h-4 w-4 accent-red-600"
             />
-            <span className="text-sm font-medium text-zinc-700">VAT 7%</span>
+            <span className="text-sm font-medium text-zinc-700">ภาษีมูลค่าเพิ่ม 7%</span>
           </label>
           <label className="flex cursor-pointer items-center gap-2">
             <input
@@ -208,7 +208,7 @@ function DocContent({
           <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>{COMPANY.name}</div>
           <div style={{ marginTop: 3, color: "#555", lineHeight: 1.6 }}>{COMPANY.address}</div>
           <div style={{ color: "#555" }}>เลขประจำตัวผู้เสียภาษี: {COMPANY.taxId}</div>
-          <div style={{ color: "#555" }}>โทร: {COMPANY.phone} | Email: {COMPANY.email}</div>
+          <div style={{ color: "#555" }}>โทร: {COMPANY.phone} | อีเมล: {COMPANY.email}</div>
         </div>
         <div style={{ textAlign: "right", minWidth: 180 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>{docTitle}</div>
@@ -301,7 +301,7 @@ function DocContent({
         <div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <tbody>
-              <TotalRow label="Total Amount รวม" value={fmt(grandTotal)} />
+              <TotalRow label="ยอดรวม" value={fmt(grandTotal)} />
               {includeVat && <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />}
               {includeWht && <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />}
               <tr style={{ borderTop: "2px solid #dc2626" }}>

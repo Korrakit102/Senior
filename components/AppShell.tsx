@@ -292,8 +292,9 @@ const tabsByRole: Record<
 };
 
 function getRoleLabel(role: Role) {
-  if (role === "SA") return "Customer";
-  return role;
+  if (role === "SA") return "ลูกค้า";
+  if (role === "Manager") return "ผู้จัดการ";
+  return "เจ้าหน้าที่คลัง";
 }
 
 function getRoleShort(role: Role) {
@@ -310,9 +311,9 @@ function LogoMark() {
       </div>
       <div className="leading-tight">
         <div className="text-base font-semibold text-zinc-900">
-          Event Stock Manager
+          ระบบจัดการสต็อกอีเวนต์
         </div>
-        <div className="text-xs text-zinc-500">ระบบบริหารจัดการ Stock</div>
+        <div className="text-xs text-zinc-500">ระบบบริหารจัดการสต็อก</div>
       </div>
     </div>
   );
@@ -615,7 +616,7 @@ export default function AppShell() {
       {stockSaveError && (
         <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2">
           <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 shadow-lg">
-            <span className="text-sm font-medium text-red-700">บันทึกข้อมูล Stock ไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
+            <span className="text-sm font-medium text-red-700">บันทึกข้อมูลสต็อกไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
             <button
               onClick={() => setStockSaveError(false)}
               className="ml-2 text-xs font-semibold text-red-500 hover:text-red-700"
@@ -665,7 +666,7 @@ export default function AppShell() {
               {roleDropdownOpen && (
                 <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-52 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
                   <div className="px-3 py-2 text-xs font-semibold text-zinc-500">
-                    สลับ Role
+                    สลับบทบาท
                   </div>
                   {(["SA", "Manager", "Stockkeeper"] as Role[]).map((r) => (
                     <button
@@ -772,7 +773,7 @@ export default function AppShell() {
               </div>
               <div className="hidden leading-tight md:block">
                 <div className="text-sm font-semibold text-zinc-900">
-                  {getRoleLabel(role)} Team
+                  ทีม{getRoleLabel(role)}
                 </div>
                 <div className="text-xs text-zinc-500">{getRoleLabel(role)}</div>
               </div>

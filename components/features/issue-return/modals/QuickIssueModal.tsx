@@ -64,10 +64,10 @@ export default function QuickIssueModal({
             <div className="flex items-start justify-between gap-3 p-5">
               <div>
                 <div className="text-lg font-semibold text-zinc-900">
-                  Quick Issue Equipment
+                  เบิกอุปกรณ์ด่วน
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
-                  เบิกอุปกรณ์เร่งด่วน (ไม่ผ่าน Event)
+                  เบิกอุปกรณ์เร่งด่วน (ไม่ผ่านอีเวนต์)
                 </div>
               </div>
 

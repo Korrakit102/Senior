@@ -118,7 +118,7 @@ export default function EventsPage({
         }
         setEquipmentByEvent(equipmentMap);
       } catch {
-        setToast("ไม่สามารถโหลดข้อมูล Event จากฐานข้อมูลได้");
+        setToast("ไม่สามารถโหลดข้อมูลอีเวนต์จากฐานข้อมูลได้");
       } finally {
         setIsLoadingEvents(false);
       }
@@ -299,7 +299,7 @@ export default function EventsPage({
       const res = await fetch(`/api/events/${deleteEventId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("failed to delete event");
     } catch {
-      setToast("ไม่สามารถลบ Event ได้");
+      setToast("ไม่สามารถลบอีเวนต์ได้");
       return;
     }
     if (target.status.tone === "success" && equipmentByEvent[deleteEventId]) {
@@ -320,7 +320,7 @@ export default function EventsPage({
       return { ...prev, events: nextEvents };
     });
     if (detailEventId === deleteEventId) setDetailEventId(null);
-    setToast(`ลบ Event เรียบร้อย: "${target.title}"`);
+    setToast(`ลบอีเวนต์เรียบร้อย: "${target.title}"`);
     setDeleteEventId(null);
   };
 
@@ -356,20 +356,20 @@ export default function EventsPage({
       setEvents((prev) => [newEvent, ...prev]);
       setEquipmentByEvent((prev) => ({ ...prev, [created.id]: [] }));
       setView("list");
-      setToast(`สร้าง Event เรียบร้อย: "${payload.title}"`);
+      setToast(`สร้างอีเวนต์เรียบร้อย: "${payload.title}"`);
       if (role === "SA") {
         fetch("/api/notifications", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: "Event ใหม่รออนุมัติ",
-            message: `${payload.title} สร้างโดย Customer รอการอนุมัติ`,
+            title: "มีอีเวนต์ใหม่รออนุมัติ",
+            message: `${payload.title} สร้างโดยลูกค้า รอการอนุมัติ`,
             audience: ["Manager"],
           }),
         }).catch(() => {});
       }
     } catch {
-      setToast("ไม่สามารถสร้าง Event ได้");
+      setToast("ไม่สามารถสร้างอีเวนต์ได้");
     }
   };
 
@@ -433,15 +433,15 @@ export default function EventsPage({
             }));
             if (decision === "approved") {
               onDeductStock(equipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
-              pushNotification({ title: "อนุมัติอุปกรณ์ Event", message: `${targetEvent?.title ?? "Event"} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
+              pushNotification({ title: "อนุมัติอุปกรณ์อีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
               window.dispatchEvent(new CustomEvent("app:event:approved"));
-              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ถูกอนุมัติ`);
+              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ถูกอนุมัติ`);
             } else {
-              pushNotification({ title: "ไม่อนุมัติ Event", message: `${targetEvent?.title ?? "Event"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA", "Stockkeeper"] });
-              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "Event"}" ไม่อนุมัติ`);
+              pushNotification({ title: "ไม่อนุมัติอีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA", "Stockkeeper"] });
+              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ไม่อนุมัติ`);
             }
           } catch {
-            setToast("ไม่สามารถบันทึก Event ลงฐานข้อมูลได้");
+            setToast("ไม่สามารถบันทึกอีเวนต์ลงฐานข้อมูลได้");
           }
         }}
       />
@@ -477,7 +477,7 @@ export default function EventsPage({
       />
 
       <div className="mt-5 text-sm text-zinc-500">
-        แสดง {visibleEvents.length} จาก {events.length} Events
+        แสดง {visibleEvents.length} จาก {events.length} อีเวนต์
       </div>
 
       <EventsViewToggle view={view} onChangeView={setView} />

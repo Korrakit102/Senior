@@ -5,12 +5,141 @@ import {
   deleteEventById,
   getEventById,
   updateEventDecision,
+  updateEventEquipment,
   updateEventIssueStatus,
 } from "@/lib/db";
+import type { EventEquipmentRow } from "@/lib/db";
+
+function normalizeEquipmentList(value: unknown): EventEquipmentRow[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Partial<EventEquipmentRow>;
+      const name = typeof row.name === "string" ? row.name.trim() : "";
+      const qty = Math.max(0, Math.floor(Number(row.qty) || 0));
+      if (!name || qty <= 0) return null;
+
+      return {
+        name,
+        qty,
+        available: Math.max(0, Math.floor(Number(row.available) || 0)),
+        category: typeof row.category === "string" ? row.category : "",
+        pricePerDayTHB: Math.max(0, Number(row.pricePerDayTHB) || 0),
+      };
+    })
+    .filter((item): item is EventEquipmentRow => item !== null);
+}
+
+function mergeEquipment(
+  currentEquipment: EventEquipmentRow[],
+  incomingEquipment: EventEquipmentRow[]
+): EventEquipmentRow[] {
+  const byName = new Map<string, EventEquipmentRow>();
+
+  for (const item of currentEquipment) {
+    byName.set(item.name, { ...item });
+  }
+
+  for (const item of incomingEquipment) {
+    const existing = byName.get(item.name);
+    if (existing) {
+      byName.set(item.name, {
+        ...existing,
+        qty: existing.qty + item.qty,
+        available: existing.available || item.available,
+        category: existing.category || item.category,
+        pricePerDayTHB: existing.pricePerDayTHB || item.pricePerDayTHB,
+      });
+    } else {
+      byName.set(item.name, { ...item });
+    }
+  }
+
+  return Array.from(byName.values());
+}
+
+function subtractEquipment(
+  currentEquipment: EventEquipmentRow[],
+  returnedEquipment: EventEquipmentRow[]
+): EventEquipmentRow[] {
+  const byName = new Map<string, EventEquipmentRow>();
+
+  for (const item of currentEquipment) {
+    byName.set(item.name, { ...item });
+  }
+
+  for (const item of returnedEquipment) {
+    const existing = byName.get(item.name);
+    if (!existing) continue;
+    const nextQty = Math.max(0, existing.qty - item.qty);
+    if (nextQty === 0) {
+      byName.delete(item.name);
+    } else {
+      byName.set(item.name, { ...existing, qty: nextQty });
+    }
+  }
+
+  return Array.from(byName.values());
+}
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   const body = await req.json().catch(() => null);
+
+  // ─── เพิ่ม/คืนอุปกรณ์แบบด่วน โดยผูกกับ Event ที่เลือก ─────────────────────
+  if (body?.quickEquipmentAction) {
+    if (!["add", "remove"].includes(body.quickEquipmentAction)) {
+      return NextResponse.json({ error: "invalid quickEquipmentAction" }, { status: 400 });
+    }
+
+    const current = await getEventById(id);
+    if (!current) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    const incomingEquipment = normalizeEquipmentList(body.equipment);
+    if (incomingEquipment.length === 0) {
+      return NextResponse.json({ error: "equipment is required" }, { status: 400 });
+    }
+
+    const currentEquipment = Array.isArray(current.equipment) ? current.equipment : [];
+    const nextEquipment =
+      body.quickEquipmentAction === "add"
+        ? mergeEquipment(currentEquipment, incomingEquipment)
+        : subtractEquipment(currentEquipment, incomingEquipment);
+
+    const isFullyReturned =
+      body.quickEquipmentAction === "remove" && nextEquipment.length === 0;
+
+    const rowCount = await updateEventEquipment({
+      id,
+      equipment: nextEquipment,
+      issueStatus:
+        body.quickEquipmentAction === "add"
+          ? "inuse"
+          : isFullyReturned
+            ? "returned"
+            : "inuse",
+      isDamaged:
+        body.quickEquipmentAction === "remove" && body.isDamaged === true
+          ? true
+          : undefined,
+      statusText: isFullyReturned ? "เสร็จสิ้น" : undefined,
+      statusTone: isFullyReturned ? "progress" : undefined,
+    });
+
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      equipment: nextEquipment,
+      issueStatus: isFullyReturned ? "returned" : "inuse",
+    });
+  }
 
   // ─── อัปเดต issueStatus (inuse / returned / ready) ─────────────────────────
   if (body?.issueStatus) {

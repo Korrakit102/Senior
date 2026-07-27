@@ -338,9 +338,9 @@ export default function CreateEventModal({
   return (
     <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/40" onClick={close} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">สร้างอีเวนต์ใหม่</div>
               <div className="mt-1 text-sm text-zinc-500">
@@ -356,7 +356,7 @@ export default function CreateEventModal({
             </button>
           </div>
 
-          <div className="px-5 pb-5">
+          <div className="min-h-0 overflow-y-auto px-5 pb-5 pt-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
                 label="ชื่ออีเวนต์"

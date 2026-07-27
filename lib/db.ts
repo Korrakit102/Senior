@@ -305,6 +305,68 @@ export async function listNotificationsForRole(role: string): Promise<Notificati
   }
 }
 
+// ลบแจ้งเตือนที่เก่ากว่าจำนวนวันที่กำหนด ใช้ cleanup อัตโนมัติใน popup แจ้งเตือน
+export async function deleteOldNotifications(days = 30): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `DELETE FROM notifications
+       WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')`,
+      [days]
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// ลบแจ้งเตือนออกจาก role เดียว ถ้าไม่มี role ไหนเห็นแล้วจะลบ row ทิ้งจริง
+export async function deleteNotificationForRole(role: string, id: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `UPDATE notifications
+       SET
+         audience = array_remove(audience, $1),
+         unread_for = array_remove(unread_for, $1)
+       WHERE id = $2 AND $1 = ANY(audience)`,
+      [role, id]
+    );
+    await client.query(
+      `DELETE FROM notifications
+       WHERE array_length(audience, 1) IS NULL`
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// ล้างแจ้งเตือนทั้งหมดของ role ปัจจุบันใน popup
+export async function deleteNotificationsForRole(role: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `UPDATE notifications
+       SET
+         audience = array_remove(audience, $1),
+         unread_for = array_remove(unread_for, $1)
+       WHERE $1 = ANY(audience)`,
+      [role]
+    );
+    await client.query(
+      `DELETE FROM notifications
+       WHERE array_length(audience, 1) IS NULL`
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
 // นับจำนวน notification ที่ role นี้ยังไม่ได้อ่าน
 export async function countUnread(role: string): Promise<number> {
   const client = await pool.connect();
@@ -519,6 +581,44 @@ export async function updateEventDecision(payload: {
       [
         payload.id, payload.startDate, payload.endDate, payload.itemsCount,
         payload.statusText, payload.statusTone, JSON.stringify(payload.equipment),
+      ]
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// อัปเดตรายการอุปกรณ์ของ Event จาก flow เบิก/คืนด่วน โดยไม่ต้องผ่านหน้าจออนุมัติ
+export async function updateEventEquipment(payload: {
+  id: string;
+  equipment: EventEquipmentRow[];
+  issueStatus?: EventLifecycleStatus;
+  isDamaged?: boolean;
+  statusText?: string;
+  statusTone?: EventStatusTone;
+}) {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    const res = await client.query(
+      `UPDATE events
+       SET
+         equipment = $2::jsonb,
+         items_count = $3,
+         issue_status = COALESCE($4::text, issue_status),
+         is_damaged = COALESCE($5::boolean, is_damaged),
+         status_text = COALESCE($6::text, status_text),
+         status_tone = COALESCE($7::text, status_tone)
+       WHERE id = $1`,
+      [
+        payload.id,
+        JSON.stringify(payload.equipment),
+        payload.equipment.length,
+        payload.issueStatus ?? null,
+        typeof payload.isDamaged === "boolean" ? payload.isDamaged : null,
+        payload.statusText ?? null,
+        payload.statusTone ?? null,
       ]
     );
     return res.rowCount ?? 0;

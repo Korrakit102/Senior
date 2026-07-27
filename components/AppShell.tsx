@@ -9,6 +9,7 @@ import {
   Settings,
   Bell,
   ChevronDown,
+  X,
 } from "lucide-react";
 
 import EventsPage from "./features/events/EventsPage";
@@ -584,6 +585,51 @@ export default function AppShell() {
     }
   };
 
+  const deleteNotification = async (id: string) => {
+    const previousList = notifList;
+    const removed = previousList.find((n) => n.id === id);
+
+    setNotifList((prev) => prev.filter((n) => n.id !== id));
+    if (removed?.unreadFor.includes(role)) {
+      setUnread((count) => Math.max(0, count - 1));
+    }
+
+    try {
+      const res = await fetch(
+        `/api/notifications?role=${role}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error("delete notification failed");
+      const data = (await res.json()) as { unread?: number };
+      if (typeof data.unread === "number") setUnread(data.unread);
+    } catch {
+      setNotifList(previousList);
+      if (removed?.unreadFor.includes(role)) {
+        setUnread((count) => count + 1);
+      }
+    }
+  };
+
+  const clearNotifications = async () => {
+    const previousList = notifList;
+    const previousUnread = unread;
+
+    setNotifList([]);
+    setUnread(0);
+
+    try {
+      const res = await fetch(`/api/notifications?role=${role}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("clear notifications failed");
+      const data = (await res.json()) as { unread?: number };
+      if (typeof data.unread === "number") setUnread(data.unread);
+    } catch {
+      setNotifList(previousList);
+      setUnread(previousUnread);
+    }
+  };
+
   const renderTabButton = (t: {
     key: Tab;
     label: string;
@@ -724,8 +770,19 @@ export default function AppShell() {
                 <div className="absolute right-0 top-[calc(100%+10px)] z-[200] w-80 rounded-2xl border border-zinc-200 bg-white shadow-xl">
                   <div className="flex items-center justify-between px-4 pb-2 pt-3">
                     <div className="text-sm font-semibold text-zinc-900">การแจ้งเตือน</div>
-                    <div className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
-                      {unread} ใหม่
+                    <div className="flex items-center gap-2">
+                      {notifList.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearNotifications}
+                          className="rounded-full px-2 py-1 text-[11px] font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                        >
+                          ล้างทั้งหมด
+                        </button>
+                      )}
+                      <div className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
+                        {unread} ใหม่
+                      </div>
                     </div>
                   </div>
                   <div className="max-h-96 divide-y divide-zinc-100 overflow-auto">
@@ -754,6 +811,15 @@ export default function AppShell() {
                           {n.unreadFor.includes(role) ? (
                             <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500" />
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() => deleteNotification(n.id)}
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                            title="ลบแจ้งเตือน"
+                            aria-label="ลบแจ้งเตือน"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       ))
                     )}

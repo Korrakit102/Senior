@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -12,24 +12,32 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import type { EquipmentItem, EquipmentOption } from "../types";
+import type { EquipmentItem, EventEquipmentItem, IssueEvent } from "../types";
 import { mergeEquipmentItems, removeEquipmentItem } from "../helpers";
 import SelectEquipmentModal from "./SelectEquipmentModal";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onConfirm: (items: EquipmentItem[], damaged: boolean, photos: File[]) => void;
-  equipmentOptions: EquipmentOption[];
+  onConfirm: (
+    eventId: string,
+    items: EquipmentItem[],
+    damaged: boolean,
+    photos: File[]
+  ) => void | Promise<void>;
+  eventOptions: IssueEvent[];
+  eventEquipmentById: Record<string, EventEquipmentItem[]>;
 };
 
 export default function QuickReturnModal({
   open,
   onClose,
   onConfirm,
-  equipmentOptions,
+  eventOptions,
+  eventEquipmentById,
 }: Props) {
   const [items, setItems] = useState<EquipmentItem[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [isDamaged, setIsDamaged] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
@@ -39,6 +47,7 @@ export default function QuickReturnModal({
   React.useEffect(() => {
     if (!open) {
       setItems([]);
+      setSelectedEventId("");
       setIsDamaged(false);
       setPhotos([]);
     }
@@ -68,7 +77,38 @@ export default function QuickReturnModal({
     setPhotos((prev) => [...prev, ...Array.from(files)]);
   };
 
-  const canConfirm = items.length > 0 && (!isDamaged || photos.length > 0);
+  const selectedEventEquipment = selectedEventId
+    ? eventEquipmentById[selectedEventId] ?? []
+    : [];
+
+  const selectedEquipmentOptions = useMemo(
+    () =>
+      selectedEventEquipment.map((item) => ({
+        id: `${selectedEventId}-${item.name}`,
+        name: item.name,
+        available: item.qty,
+      })),
+    [selectedEventEquipment, selectedEventId]
+  );
+
+  const availableEquipmentOptions = useMemo(
+    () =>
+      selectedEquipmentOptions
+        .map((option) => {
+          const selectedQty = items.find((item) => item.id === option.id)?.qty ?? 0;
+          return {
+            ...option,
+            available: Math.max(0, option.available - selectedQty),
+          };
+        })
+        .filter((option) => option.available > 0),
+    [selectedEquipmentOptions, items]
+  );
+
+  const canConfirm =
+    Boolean(selectedEventId) &&
+    items.length > 0 &&
+    (!isDamaged || photos.length > 0);
 
   if (!open) return null;
 
@@ -78,7 +118,9 @@ export default function QuickReturnModal({
         open={isSelectOpen}
         onClose={() => setIsSelectOpen(false)}
         onAdd={addItem}
-        equipmentOptions={equipmentOptions}
+        equipmentOptions={availableEquipmentOptions}
+        availableLabel="อยู่ในอีเวนต์"
+        emptyText="ไม่มีอุปกรณ์ค้างอยู่ในอีเวนต์นี้"
       />
 
       <div className="fixed inset-0 z-[140]">
@@ -92,7 +134,7 @@ export default function QuickReturnModal({
                   คืนอุปกรณ์ด่วน
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
-                  คืนอุปกรณ์เร่งด่วน พร้อมหลักฐานรูปภาพ
+                  เลือกอีเวนต์และอุปกรณ์ที่จะคืน พร้อมหลักฐานรูปภาพ
                 </div>
               </div>
 
@@ -105,6 +147,29 @@ export default function QuickReturnModal({
             </div>
 
             <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 pb-5">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-zinc-700">
+                  เลือกอีเวนต์ <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => {
+                    setSelectedEventId(e.target.value);
+                    setItems([]);
+                    setIsDamaged(false);
+                    setPhotos([]);
+                  }}
+                  className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="">เลือกอีเวนต์...</option>
+                  {eventOptions.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} ({event.code}) - {event.company}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-zinc-800">
                   อุปกรณ์ที่จะคืน ({items.length})
@@ -112,7 +177,8 @@ export default function QuickReturnModal({
 
                 <button
                   onClick={() => setIsSelectOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 shadow-sm"
+                  disabled={!selectedEventId || availableEquipmentOptions.length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
                   เพิ่มอุปกรณ์
@@ -274,7 +340,8 @@ export default function QuickReturnModal({
 
                 <button
                   onClick={() => {
-                    onConfirm(items, isDamaged, photos);
+                    if (!selectedEventId) return;
+                    void onConfirm(selectedEventId, items, isDamaged, photos);
                     onClose();
                   }}
                   disabled={!canConfirm}

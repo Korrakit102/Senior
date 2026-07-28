@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { EquipmentItem, EventEquipmentItem, IssueEvent } from "../types";
 import { mergeEquipmentItems, removeEquipmentItem } from "../helpers";
+import CameraCaptureModal from "./CameraCaptureModal";
 import SelectEquipmentModal from "./SelectEquipmentModal";
 
 type Props = {
@@ -41,8 +42,8 @@ export default function QuickReturnModal({
   const [isDamaged, setIsDamaged] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!open) {
@@ -50,6 +51,7 @@ export default function QuickReturnModal({
       setSelectedEventId("");
       setIsDamaged(false);
       setPhotos([]);
+      setIsCameraOpen(false);
     }
   }, [open]);
 
@@ -57,12 +59,12 @@ export default function QuickReturnModal({
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSelectOpen) onClose();
+      if (e.key === "Escape" && !isSelectOpen && !isCameraOpen) onClose();
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, isSelectOpen]);
+  }, [open, onClose, isSelectOpen, isCameraOpen]);
 
   const addItem = (item: EquipmentItem) => {
     setItems((prev) => mergeEquipmentItems(prev, item));
@@ -75,6 +77,10 @@ export default function QuickReturnModal({
   const addPhotos = (files: FileList | null) => {
     if (!files) return;
     setPhotos((prev) => [...prev, ...Array.from(files)]);
+  };
+
+  const addCameraPhoto = (file: File) => {
+    setPhotos((prev) => [...prev, file]);
   };
 
   const selectedEventEquipment = selectedEventId
@@ -121,6 +127,12 @@ export default function QuickReturnModal({
         equipmentOptions={availableEquipmentOptions}
         availableLabel="อยู่ในอีเวนต์"
         emptyText="ไม่มีอุปกรณ์ค้างอยู่ในอีเวนต์นี้"
+      />
+
+      <CameraCaptureModal
+        open={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={addCameraPhoto}
       />
 
       <div className="fixed inset-0 z-[140]">
@@ -270,7 +282,7 @@ export default function QuickReturnModal({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => cameraRef.current?.click()}
+                    onClick={() => setIsCameraOpen(true)}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
                   >
                     <Camera className="h-4 w-4" />
@@ -292,15 +304,6 @@ export default function QuickReturnModal({
                   type="file"
                   accept="image/*"
                   multiple
-                  className="hidden"
-                  onChange={(e) => addPhotos(e.target.files)}
-                />
-
-                <input
-                  ref={cameraRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
                   className="hidden"
                   onChange={(e) => addPhotos(e.target.files)}
                 />

@@ -197,6 +197,32 @@ export default function IssueReturnPage({
       };
     });
 
+  const pushNotification = (data: { title: string; message: string; audience: Role[] }) => {
+    fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const notif = await res.json();
+        window.dispatchEvent(
+          new CustomEvent("app:notification:new", {
+            detail: {
+              id: notif.id,
+              createdAt: notif.createdAt,
+              timeISO: notif.createdAt,
+              title: data.title,
+              message: data.message,
+              audience: data.audience,
+              unreadFor: data.audience,
+            },
+          })
+        );
+      })
+      .catch(() => undefined);
+  };
+
   const handleIssueClick = (event: IssueEvent) => setConfirmIssueEvent(event);
 
   const handleConfirmIssue = async () => {
@@ -277,6 +303,11 @@ export default function IssueReturnPage({
       );
       window.dispatchEvent(new CustomEvent("app:event:returned"));
       onUnmarkEventAsIssued?.(confirmReturnEvent.id);
+      pushNotification({
+        title: "รอชำระเงิน",
+        message: `${confirmReturnEvent.title} คืนอุปกรณ์ครบแล้ว กรุณาชำระเงินและแนบใบเสร็จ`,
+        audience: ["SA"],
+      });
 
       const totalPhotos = returnItems.reduce((sum, i) => sum + i.photos.length, 0);
       if (anyDamaged) {
@@ -405,6 +436,11 @@ export default function IssueReturnPage({
       if (nextStatus === "returned") {
         window.dispatchEvent(new CustomEvent("app:event:returned"));
         onUnmarkEventAsIssued?.(eventId);
+        pushNotification({
+          title: "รอชำระเงิน",
+          message: `${selectedEvent?.title ?? "อีเวนต์"} คืนอุปกรณ์ครบแล้ว กรุณาชำระเงินและแนบใบเสร็จ`,
+          audience: ["SA"],
+        });
       }
 
       const names = items.map((i) => i.name).join(", ");

@@ -3,6 +3,7 @@
 import React, { useRef, useState } from "react";
 import { AlertTriangle, Camera, CheckCircle, Package, Upload, X } from "lucide-react";
 import type { IssueEvent, ReturnItemResult } from "../types";
+import CameraCaptureModal from "./CameraCaptureModal";
 
 type ItemDamageInfo = {
   damaged: boolean;
@@ -27,31 +28,43 @@ export default function ConfirmReturnModal({
 }: Props) {
   const [itemDamage, setItemDamage] = useState<Record<string, ItemDamageInfo>>({});
   const [activeItem, setActiveItem] = useState<string | null>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (!open) {
       setItemDamage({});
       setActiveItem(null);
+      setIsCameraOpen(false);
     }
   }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape" && !isCameraOpen) onCancel();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  }, [open, onCancel, isCameraOpen]);
 
   const addPhotos = (itemName: string, files: FileList | null, totalQty: number) => {
     if (!files) return;
+    appendPhotos(itemName, Array.from(files), totalQty);
+  };
+
+  const appendPhotos = (itemName: string, files: File[], totalQty: number) => {
+    if (files.length === 0) return;
     setItemDamage((prev) => {
       const info = prev[itemName] ?? { damaged: true, damagedQty: totalQty, photos: [] };
-      return { ...prev, [itemName]: { ...info, photos: [...info.photos, ...Array.from(files)] } };
+      return { ...prev, [itemName]: { ...info, photos: [...info.photos, ...files] } };
     });
+  };
+
+  const addCameraPhoto = (file: File) => {
+    if (!activeItem) return;
+    const totalQty = equipmentItems.find((i) => i.name === activeItem)?.qty ?? 1;
+    appendPhotos(activeItem, [file], totalQty);
   };
 
   const removePhoto = (itemName: string, idx: number) => {
@@ -87,6 +100,12 @@ export default function ConfirmReturnModal({
   return (
     <div className="fixed inset-0 z-[150]">
       <div className="absolute inset-0 bg-black/40" onClick={onCancel} />
+
+      <CameraCaptureModal
+        open={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={addCameraPhoto}
+      />
 
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-zinc-200 bg-white shadow-2xl">
@@ -230,7 +249,7 @@ export default function ConfirmReturnModal({
                                 type="button"
                                 onClick={() => {
                                   setActiveItem(item.name);
-                                  cameraRef.current?.click();
+                                  setIsCameraOpen(true);
                                 }}
                                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
                               >
@@ -317,20 +336,6 @@ export default function ConfirmReturnModal({
         type="file"
         accept="image/*"
         multiple
-        className="hidden"
-        onChange={(e) => {
-          if (activeItem) {
-            const totalQty = equipmentItems.find((i) => i.name === activeItem)?.qty ?? 1;
-            addPhotos(activeItem, e.target.files, totalQty);
-          }
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => {
           if (activeItem) {

@@ -32,6 +32,30 @@ import type {
   SelectedEquipment,
 } from "./types";
 
+function canShowEventForRole(
+  event: EventItem,
+  role: Role,
+  issuedEventIds: Set<string>
+) {
+  if (role !== "Stockkeeper") return true;
+
+  return (
+    event.status.tone === "success" ||
+    event.status.tone === "progress" ||
+    event.isIssued === true ||
+    issuedEventIds.has(event.id)
+  );
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function EventsPage({
   role,
   stockData,
@@ -89,7 +113,7 @@ export default function EventsPage({
     const loadEvents = async () => {
       setIsLoadingEvents(true);
       try {
-        const res = await fetch("/api/events");
+        const res = await fetch(`/api/events?role=${encodeURIComponent(role)}`);
         if (!res.ok) throw new Error("failed to fetch events");
         const rows = (await res.json()) as EventApiItem[];
 
@@ -109,6 +133,7 @@ export default function EventsPage({
             contactPhone: r.contactPhone, branchCode: r.branchCode,
             budgetTHB: r.budgetTHB, attendees: r.attendees,
             isIssued: r.issueStatus === "inuse",
+            paymentReceipt: r.paymentReceipt,
           };
         }));
 
@@ -124,14 +149,14 @@ export default function EventsPage({
       }
     };
     loadEvents();
-  }, []);
+  }, [role]);
 
   // ✅ รับ signal จาก IssueReturn ว่ามี Event ที่ Return แล้ว → reload ข้อมูลใหม่
   useEffect(() => {
     const onReload = () => {
       const loadEvents = async () => {
         try {
-          const res = await fetch("/api/events");
+          const res = await fetch(`/api/events?role=${encodeURIComponent(role)}`);
           if (!res.ok) return;
           const rows = (await res.json()) as EventApiItem[];
           setEvents(rows.map((r) => {
@@ -150,6 +175,7 @@ export default function EventsPage({
               contactPhone: r.contactPhone, branchCode: r.branchCode,
               budgetTHB: r.budgetTHB, attendees: r.attendees,
               isIssued: r.issueStatus === "inuse",
+              paymentReceipt: r.paymentReceipt,
             };
           }));
         } catch { /* silent */ }
@@ -158,7 +184,7 @@ export default function EventsPage({
     };
     window.addEventListener("app:event:returned", onReload);
     return () => window.removeEventListener("app:event:returned", onReload);
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     if (!toast) return;
@@ -166,9 +192,34 @@ export default function EventsPage({
     return () => clearTimeout(timer);
   }, [toast]);
 
+  const roleEvents = useMemo(
+    () => events.filter((event) => canShowEventForRole(event, role, issuedEventIds)),
+    [events, role, issuedEventIds]
+  );
+
+  const roleStatusOptions = useMemo<readonly string[]>(
+    () =>
+      role === "Stockkeeper"
+        ? statusOptions.filter(
+            (option) =>
+              option !== "รออนุมัติ" &&
+              option !== "ไม่อนุมัติ" &&
+              option !== "รอชำระเงิน" &&
+              option !== "รอตรวจสอบการชำระเงิน"
+          )
+        : statusOptions,
+    [role]
+  );
+
+  useEffect(() => {
+    if (!roleStatusOptions.includes(statusFilter)) {
+      setStatusFilter("สถานะทั้งหมด");
+    }
+  }, [roleStatusOptions, statusFilter]);
+
   const companyOptions = useMemo(
-    () => Array.from(new Set(events.map((e) => e.company))).sort((a, b) => a.localeCompare(b)),
-    [events]
+    () => Array.from(new Set(roleEvents.map((e) => e.company))).sort((a, b) => a.localeCompare(b)),
+    [roleEvents]
   );
 
   const pushNotification = (data: { title: string; message: string; audience: Role[] }) => {
@@ -189,12 +240,12 @@ export default function EventsPage({
   };
 
   const stats = useMemo(() => {
-    const total = events.length;
-    const pending = events.filter((e) => e.status.tone === "pending").length;
-    const progress = events.filter(
+    const total = roleEvents.length;
+    const pending = roleEvents.filter((e) => e.status.text === "รออนุมัติ").length;
+    const progress = roleEvents.filter(
       (e) => e.status.tone === "progress" || e.isIssued === true || issuedEventIds.has(e.id)
     ).length;
-    const approved = events.filter(
+    const approved = roleEvents.filter(
       (e) => e.status.tone === "success" && e.isIssued !== true && !issuedEventIds.has(e.id)
     ).length;
     return [
@@ -203,13 +254,13 @@ export default function EventsPage({
       { label: "อนุมัติแล้ว", value: approved, tone: "emerald" as const, icon: <ThumbsUp className="h-5 w-5" /> },
       { label: "กำลังดำเนินการ", value: progress, tone: "sky" as const, icon: <CheckCircle2 className="h-5 w-5" /> },
     ];
-  }, [events, issuedEventIds]);
+  }, [roleEvents, issuedEventIds]);
 
   const visibleEvents = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     const filtered = statusFilter === "สถานะทั้งหมด"
-      ? events
-      : events.filter((e) => e.status.text === statusFilter);
+      ? roleEvents
+      : roleEvents.filter((e) => e.status.text === statusFilter);
     const searched = !keyword ? filtered : filtered.filter((e) =>
       [e.title, e.company, e.place, e.desc, e.organizer ?? "", e.contactName ?? "", e.contactPhone ?? "", e.code]
         .join(" ").toLowerCase().includes(keyword)
@@ -220,7 +271,7 @@ export default function EventsPage({
       if (aCreated !== bCreated) return bCreated - aCreated;
       return b.id.localeCompare(a.id);
     });
-  }, [events, search, statusFilter]);
+  }, [roleEvents, search, statusFilter]);
 
   // ✅ map isIssued เข้าไปใน visibleEvents (รวม DB + session)
   const visibleEventsWithIssued = useMemo(
@@ -352,6 +403,7 @@ export default function EventsPage({
         organizer: payload.organizer, contactName: payload.contactName,
         contactPhone: payload.contactPhone, branchCode: payload.branchCode,
         budgetTHB: payload.budgetTHB, attendees: payload.attendees,
+        paymentReceipt: undefined,
       };
       setEvents((prev) => [newEvent, ...prev]);
       setEquipmentByEvent((prev) => ({ ...prev, [created.id]: [] }));
@@ -370,6 +422,91 @@ export default function EventsPage({
       }
     } catch {
       setToast("ไม่สามารถสร้างอีเวนต์ได้");
+    }
+  };
+
+  const handleUploadReceipt = async (eventId: string, file: File) => {
+    const targetEvent = events.find((event) => event.id === eventId);
+
+    if (file.size > 2 * 1024 * 1024) {
+      setToast("ไฟล์ใบเสร็จต้องไม่เกิน 2MB");
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentAction: "uploadReceipt",
+          fileName: file.name,
+          fileType: file.type,
+          dataUrl,
+        }),
+      });
+      if (!res.ok) throw new Error("failed to upload receipt");
+
+      const data = (await res.json()) as {
+        status: EventItem["status"];
+        paymentReceipt: NonNullable<EventItem["paymentReceipt"]>;
+      };
+
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === eventId
+            ? {
+                ...event,
+                status: data.status,
+                paymentReceipt: data.paymentReceipt,
+              }
+            : event
+        )
+      );
+
+      pushNotification({
+        title: "ลูกค้าแนบใบเสร็จแล้ว",
+        message: `${targetEvent?.title ?? "อีเวนต์"} รอผู้จัดการตรวจสอบการชำระเงิน`,
+        audience: ["Manager"],
+      });
+      setToast(`แนบใบเสร็จแล้ว: "${targetEvent?.title ?? "อีเวนต์"}"`);
+    } catch {
+      setToast("ไม่สามารถแนบใบเสร็จได้");
+    }
+  };
+
+  const handleConfirmPayment = async (eventId: string) => {
+    const targetEvent = events.find((event) => event.id === eventId);
+
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentAction: "confirmPayment" }),
+      });
+      if (!res.ok) throw new Error("failed to confirm payment");
+
+      const data = (await res.json()) as { status: EventItem["status"] };
+
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === eventId
+            ? {
+                ...event,
+                status: data.status,
+              }
+            : event
+        )
+      );
+
+      pushNotification({
+        title: "ยืนยันการชำระเงินแล้ว",
+        message: `${targetEvent?.title ?? "อีเวนต์"} ชำระเงินเรียบร้อยและปิดงานแล้ว`,
+        audience: ["SA"],
+      });
+      setToast(`ยืนยันการชำระเงินแล้ว: "${targetEvent?.title ?? "อีเวนต์"}"`);
+    } catch {
+      setToast("ไม่สามารถยืนยันการชำระเงินได้");
     }
   };
 
@@ -437,7 +574,7 @@ export default function EventsPage({
               window.dispatchEvent(new CustomEvent("app:event:approved"));
               setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ถูกอนุมัติ`);
             } else {
-              pushNotification({ title: "ไม่อนุมัติอีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA", "Stockkeeper"] });
+              pushNotification({ title: "ไม่อนุมัติอีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA"] });
               setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ไม่อนุมัติ`);
             }
           } catch {
@@ -453,7 +590,15 @@ export default function EventsPage({
         onClose={() => setCalendarDetail(null)}
       />
 
-      <EventDetailModal open={!!detailEventId} event={detailEvent} equipment={detailEquipment} onClose={() => setDetailEventId(null)} />
+      <EventDetailModal
+        open={!!detailEventId}
+        event={detailEvent}
+        equipment={detailEquipment}
+        role={role}
+        onClose={() => setDetailEventId(null)}
+        onUploadReceipt={handleUploadReceipt}
+        onConfirmPayment={handleConfirmPayment}
+      />
 
       <ConfirmDeleteEventModal open={!!deleteEventId} eventTitle={deleteEvent?.title ?? ""} onConfirm={handleConfirmDeleteEvent} onCancel={() => setDeleteEventId(null)} />
 
@@ -469,7 +614,7 @@ export default function EventsPage({
         search={search}
         onSearchChange={setSearch}
         statusFilter={statusFilter}
-        statusOptions={statusOptions}
+        statusOptions={roleStatusOptions}
         isStatusOpen={isStatusOpen}
         setIsStatusOpen={setIsStatusOpen}
         onSelectStatus={(value) => { setStatusFilter(value); setIsStatusOpen(false); }}
@@ -477,7 +622,7 @@ export default function EventsPage({
       />
 
       <div className="mt-5 text-sm text-zinc-500">
-        แสดง {visibleEvents.length} จาก {events.length} อีเวนต์
+        แสดง {visibleEvents.length} จาก {roleEvents.length} อีเวนต์
       </div>
 
       <EventsViewToggle view={view} onChangeView={setView} />

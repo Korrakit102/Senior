@@ -81,7 +81,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     {
       id: "DOC001",
       title: "ใบสั่งงาน - งานเลี้ยงปีใหม่",
-      owner: "Stockkeeper Team",
+      owner: "ทีมเจ้าหน้าที่คลัง",
       category: "workorder",
       eventOrCompany:
         "งานเลี้ยงปีใหม่ 2025\nบริษัท ตัวอย่าง จำกัด\n31 ธ.ค. - 1 ม.ค.",
@@ -93,7 +93,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     {
       id: "DOC002",
       title: "รายงานตรวจสอบอุปกรณ์ประจำเดือน",
-      owner: "Stockkeeper Team",
+      owner: "ทีมเจ้าหน้าที่คลัง",
       category: "report",
       eventOrCompany: "-",
       description: "รายงานการตรวจสอบสภาพอุปกรณ์ทั้งหมดประจำเดือนมิถุนายน",
@@ -104,10 +104,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     {
       id: "DOC003",
       title: "สัญญาเช่าอุปกรณ์ระยะยาว",
-      owner: "Manager Team",
+      owner: "ทีมผู้จัดการ",
       category: "contract",
       eventOrCompany:
-        "โครงการพัฒนาพนักงาน\nบริษัท HR Solutions จำกัด\n1 ต.ค. - 31 ธ.ค.",
+        "โครงการพัฒนาพนักงาน\nบริษัท เอชอาร์ โซลูชันส์ จำกัด\n1 ต.ค. - 31 ธ.ค.",
       description: "สัญญาเช่าอุปกรณ์สำหรับงานต่อเนื่อง 6 เดือน",
       uploadedAt: "1 มี.ค. 2567",
       uploadedAtISO: "2024-03-01",
@@ -115,11 +115,11 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     },
     {
       id: "DOC004",
-      title: "ใบเสนอราคา - งานแสดงสินค้า Trade Show",
-      owner: "Manager Team",
+      title: "ใบเสนอราคา - งานแสดงสินค้านานาชาติ",
+      owner: "ทีมผู้จัดการ",
       category: "quotation",
       eventOrCompany:
-        "Trade Show International 2024\nบริษัท เทคอินโนเวชั่นส์ จำกัด\n5 ก.ค. - 8 ก.ค.",
+        "งานแสดงสินค้านานาชาติ 2024\nบริษัท เทคอินโนเวชั่นส์ จำกัด\n5 ก.ค. - 8 ก.ค.",
       description: "ใบเสนอราคาอุปกรณ์สำหรับงานแสดงสินค้านานาชาติ",
       uploadedAt: "15 พ.ค. 2567",
       uploadedAtISO: "2024-05-15",
@@ -128,7 +128,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     {
       id: "DOC005",
       title: "ใบแจ้งหนี้ - งานสัมมนาผู้บริหาร",
-      owner: "SA Team",
+      owner: "ทีมลูกค้า",
       category: "invoice",
       eventOrCompany:
         "งานสัมมนาผู้บริหาร 2024\nบริษัท ไมน์ครุต จำกัด\n10 มิ.ย. - 12 มิ.ย.",
@@ -139,10 +139,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     },
     {
       id: "DOC006",
-      title: "ใบแจ้งหนี้ - Annual Meeting 2025",
-      owner: "SA Team",
+      title: "ใบแจ้งหนี้ - ประชุมประจำปี 2025",
+      owner: "ทีมลูกค้า",
       category: "invoice",
-      eventOrCompany: "Annual Meeting 2025\nABC Corporation\n20 พ.ย.",
+      eventOrCompany: "ประชุมประจำปี 2025\nบริษัท เอบีซี จำกัด\n20 พ.ย.",
       description: "ใบแจ้งหนี้ค่าอุปกรณ์และบริการ",
       uploadedAt: "21 พ.ย. 2567",
       uploadedAtISO: "2024-11-21",
@@ -150,11 +150,11 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     },
     {
       id: "DOC007",
-      title: "ใบเสนอราคา - Product Launch Event",
-      owner: "Manager Team",
+      title: "ใบเสนอราคา - งานเปิดตัวสินค้า",
+      owner: "ทีมผู้จัดการ",
       category: "quotation",
       eventOrCompany:
-        "Product Launch Event\nTech Innovations Ltd\n25 พ.ย.",
+        "งานเปิดตัวสินค้า\nบริษัท เทค อินโนเวชั่นส์ จำกัด\n25 พ.ย.",
       description: "ใบเสนอราคาอุปกรณ์เวทีและระบบแสง",
       uploadedAt: "18 พ.ย. 2567",
       uploadedAtISO: "2024-11-18",
@@ -163,7 +163,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     {
       id: "DOC008",
       title: "เอกสารอื่นๆ - แนบรูปตัวอย่างงาน",
-      owner: "Manager Team",
+      owner: "ทีมผู้จัดการ",
       category: "other",
       eventOrCompany: "-",
       description: "ไฟล์แนบสำหรับอ้างอิงงานและตัวอย่างการติดตั้ง",
@@ -303,7 +303,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
 
   const handleExportStock = () => {
     exportToExcel(
-      "Stock Report",
+      "รายงานสต็อก",
       "stock-report",
       buildStockExportData(filteredStock)
     );
@@ -311,7 +311,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
 
   const handleExportEvents = () => {
     exportToExcel(
-      "Events Report",
+      "รายงานอีเวนต์",
       "events-report",
       buildEventsExportData(filteredEvents)
     );
@@ -319,7 +319,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
 
   const handleExportDocs = () => {
     exportToExcel(
-      "Documents",
+      "เอกสาร",
       "documents-report",
       buildDocsExportData(filteredDocs)
     );
@@ -327,7 +327,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
 
   const handleExportFinance = () => {
     exportToExcel(
-      "Finance Report",
+      "รายงานการเงิน",
       "finance-report",
       buildFinanceExportData(finance, eventReportRows)
     );
@@ -338,7 +338,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       alert("ไม่มีรายการความเสียหายให้ส่งออก");
       return;
     }
-    exportToExcel("Damage Report", "damage-report", buildDamageExportData(filteredDamage));
+    exportToExcel("รายงานความเสียหาย", "damage-report", buildDamageExportData(filteredDamage));
   };
 
   const onAddDoc = () => setIsAddDocOpen(true);

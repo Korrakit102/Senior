@@ -9,6 +9,8 @@ type Props = {
   onClose: () => void;
   onAdd: (item: EquipmentItem) => void;
   equipmentOptions: EquipmentOption[];
+  availableLabel?: string;
+  emptyText?: string;
 };
 
 export default function SelectEquipmentModal({
@@ -16,6 +18,8 @@ export default function SelectEquipmentModal({
   onClose,
   onAdd,
   equipmentOptions,
+  availableLabel = "พร้อมใช้",
+  emptyText = "ไม่มีอุปกรณ์ให้เลือก",
 }: Props) {
   const [selectedId, setSelectedId] = useState("");
   const [qty, setQty] = useState("");
@@ -111,7 +115,7 @@ export default function SelectEquipmentModal({
               >
                 <span className={selected ? "text-zinc-900" : "text-zinc-400"}>
                   {selected
-                    ? `${selected.name} (พร้อมใช้: ${selected.available})`
+                    ? `${selected.name} (${availableLabel}: ${selected.available})`
                     : "เลือกอุปกรณ์..."}
                 </span>
 
@@ -124,25 +128,35 @@ export default function SelectEquipmentModal({
 
               {dropOpen && (
                 <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-60 overflow-auto rounded-xl border border-zinc-200 bg-white shadow-lg">
-                  {equipmentOptions.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(opt.id);
-                        setDropOpen(false);
-                        setError("");
-                      }}
-                      className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition hover:bg-zinc-50 ${
-                        opt.id === selectedId ? "bg-zinc-100 font-semibold" : ""
-                      }`}
-                    >
-                      <span>{opt.name}</span>
-                      <span className="text-xs text-zinc-400">
-                        พร้อมใช้: {opt.available}
-                      </span>
-                    </button>
-                  ))}
+                  {equipmentOptions.length === 0 ? (
+                    <div className="px-3 py-3 text-sm text-zinc-400">
+                      {emptyText}
+                    </div>
+                  ) : (
+                    equipmentOptions.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(opt.id);
+                          setDropOpen(false);
+                          setError("");
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-2.5 text-left text-sm transition hover:bg-zinc-50 ${
+                          opt.id === selectedId
+                            ? "bg-zinc-100 font-semibold"
+                            : "bg-white"
+                        }`}
+                      >
+                        <span className="font-medium text-zinc-900">
+                          {opt.name}
+                        </span>
+                        <span className="text-xs font-medium text-zinc-500">
+                          {availableLabel}: {opt.available}
+                        </span>
+                      </button>
+                    ))
+                  )}
                 </div>
               )}
             </div>

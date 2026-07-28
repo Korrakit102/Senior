@@ -55,7 +55,7 @@ export default function DocsReportSection({
               <tr className="text-left text-xs font-semibold text-zinc-500">
                 <th className="border-b border-zinc-200 py-3 pr-4">เอกสาร</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">หมวดหมู่</th>
-                <th className="border-b border-zinc-200 py-3 pr-4">Event / บริษัท</th>
+                <th className="border-b border-zinc-200 py-3 pr-4">อีเวนต์ / บริษัท</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">คำอธิบาย</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">วันที่อัปโหลด</th>
                 <th className="border-b border-zinc-200 py-3 text-right">การจัดการ</th>

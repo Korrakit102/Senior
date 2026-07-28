@@ -26,12 +26,12 @@ export default function FinanceReportSection({
           tone="emerald"
         />
         <ReportsStatMini
-          title="Events ทั้งหมด"
+          title="อีเวนต์ทั้งหมด"
           value={finance.totalEvents}
           tone="sky"
         />
         <ReportsStatMini
-          title="ค่าเฉลี่ย/Event"
+          title="ค่าเฉลี่ย/อีเวนต์"
           value={finance.avgPerEvent}
           unit="฿"
           tone="violet"
@@ -40,10 +40,10 @@ export default function FinanceReportSection({
 
       <div className="mt-6">
         <div className="text-sm font-semibold text-zinc-900">
-          Top 5 Events รายได้สูงสุด
+          5 อันดับอีเวนต์รายได้สูงสุด
         </div>
         <div className="mt-1 text-sm text-zinc-500">
-          แสดง {finance.topEvents.length} จาก {finance.totalEvents} Events
+          แสดง {finance.topEvents.length} จาก {finance.totalEvents} อีเวนต์
         </div>
 
         <div className="mt-4 rounded-2xl border border-zinc-200 bg-white">

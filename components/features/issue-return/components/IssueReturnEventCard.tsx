@@ -55,7 +55,7 @@ export default function IssueReturnEventCard({
         {tab === "issue" && role !== "Stockkeeper" && (
           <div className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700">
             <Clock className="h-4 w-4" />
-            รอ Stockkeeper ดำเนินการ
+            รอเจ้าหน้าที่คลังดำเนินการ
           </div>
         )}
 
@@ -80,7 +80,7 @@ export default function IssueReturnEventCard({
         {tab === "return" && role !== "Stockkeeper" && (
           <div className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700">
             <CornerDownLeft className="h-4 w-4" />
-            รอ Stockkeeper คืนอุปกรณ์
+            รอเจ้าหน้าที่คลังคืนอุปกรณ์
           </div>
         )}
       </div>

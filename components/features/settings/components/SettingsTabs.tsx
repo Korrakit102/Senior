@@ -46,14 +46,14 @@ export default function SettingsTabs({
           active={tab === "company"}
           onClick={() => onChange("company")}
           icon={<Building2 className="h-4 w-4" />}
-          label="Company Info"
+          label="ข้อมูลบริษัท"
         />
 
         <SegTab
           active={tab === "banking"}
           onClick={() => onChange("banking")}
           icon={<CreditCard className="h-4 w-4" />}
-          label="Banking"
+          label="ข้อมูลธนาคาร"
         />
       </div>
     </div>

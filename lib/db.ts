@@ -2,10 +2,12 @@
 
 import { Pool, PoolClient, QueryResult } from "pg";
 
+// อ่าน connection string จาก env ก่อน ถ้าไม่มีจะ fallback ไป PostgreSQL local
 const connectionString =
   process.env.DATABASE_URL ||
   "postgres://postgres:postgres@localhost:5432/postgres";
 
+// สร้าง connection pool กลางสำหรับ query PostgreSQL ทั้งระบบ
 const pool = new Pool({
   connectionString,
   ssl:
@@ -16,6 +18,7 @@ const pool = new Pool({
         : false,
 });
 
+// รูปแบบข้อมูล notification ที่อ่านจากตาราง notifications
 export type NotificationRow = {
   id: string;
   title: string;
@@ -25,9 +28,13 @@ export type NotificationRow = {
   created_at: string;
 };
 
+// สถานะของ Event ที่ใช้กำหนดสี/ความหมายบน UI
 export type EventStatusTone = "success" | "pending" | "progress" | "rejected";
+
+// สถานะ lifecycle สำหรับงานเบิก-คืนอุปกรณ์ของ Event
 export type EventLifecycleStatus = "ready" | "inuse" | "returned";
 
+// รูปแบบอุปกรณ์ที่ผูกอยู่กับ Event และถูกเก็บเป็น JSONB
 export type EventEquipmentRow = {
   name: string;
   qty: number;
@@ -36,6 +43,7 @@ export type EventEquipmentRow = {
   pricePerDayTHB: number;
 };
 
+// รูปแบบข้อมูล Event ที่อ่านจากตาราง events
 export type EventRow = {
   id: string;
   title: string;
@@ -59,6 +67,7 @@ export type EventRow = {
   equipment: EventEquipmentRow[];
 };
 
+// รูปแบบข้อมูล stock item ที่อ่านจากตาราง stock_items
 export type StockRowDb = {
   id: string;
   code: string;
@@ -74,6 +83,7 @@ export type StockRowDb = {
   cost: number;
 };
 
+// รูปแบบประวัติการเปลี่ยนจำนวน stock ที่อ่านจากตาราง stock_history
 export type StockHistoryRow = {
   id: string;
   stock_id: string;
@@ -87,7 +97,7 @@ export type StockHistoryRow = {
   created_at: string;
 };
 
-// ✅ Type สำหรับประวัติการแก้ไขอุปกรณ์ใน Event
+// Type สำหรับประวัติการแก้ไขอุปกรณ์ใน Event
 export type EquipmentHistoryRow = {
   id: string;
   event_id: string;
@@ -97,6 +107,7 @@ export type EquipmentHistoryRow = {
   changed_at: string;
 };
 
+// ตรวจและสร้างตารางแจ้งเตือน ถ้ายังไม่มีในฐานข้อมูล
 async function ensureNotificationsTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -115,6 +126,7 @@ async function ensureNotificationsTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง Event รวมถึงเติม column ใหม่ที่อาจเพิ่มภายหลัง
 async function ensureEventsTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -159,6 +171,7 @@ async function ensureEventsTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง stock_items สำหรับเก็บข้อมูลอุปกรณ์ในคลัง
 async function ensureStockTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -184,6 +197,7 @@ async function ensureStockTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง stock_history สำหรับเก็บประวัติการเปลี่ยนจำนวนอุปกรณ์
 async function ensureStockHistoryTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -206,7 +220,7 @@ async function ensureStockHistoryTable(client?: PoolClient) {
   }
 }
 
-// ✅ Table สำหรับประวัติการแก้ไขอุปกรณ์ใน Event
+// ตรวจและสร้างตาราง equipment_history สำหรับประวัติการเพิ่ม/ลบอุปกรณ์ใน Event
 async function ensureEquipmentHistoryTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -225,6 +239,7 @@ async function ensureEquipmentHistoryTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง app_settings สำหรับเก็บค่า Settings ของระบบ
 async function ensureSettingsTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
   try {
@@ -240,6 +255,17 @@ async function ensureSettingsTable(client?: PoolClient) {
   }
 }
 
+// เรียก ensure ทุกตาราง ใช้เมื่อต้องการเตรียม database ให้พร้อมก่อนใช้งาน
+async function ensureTables(client?: PoolClient) {
+  await ensureNotificationsTable(client);
+  await ensureEventsTable(client);
+  await ensureStockTable(client);
+  await ensureStockHistoryTable(client);
+  await ensureEquipmentHistoryTable(client);
+  await ensureSettingsTable(client);
+}
+
+// เพิ่ม notification ใหม่พร้อมกำหนด audience และรายชื่อ role ที่ยังไม่ได้อ่าน
 export async function insertNotification(payload: {
   id: string;
   title: string;
@@ -261,6 +287,7 @@ export async function insertNotification(payload: {
   }
 }
 
+// ดึง notification ทั้งหมดที่ role นี้มีสิทธิ์เห็น เรียงจากใหม่ไปเก่า
 export async function listNotificationsForRole(role: string): Promise<NotificationRow[]> {
   const client = await pool.connect();
   try {
@@ -278,6 +305,69 @@ export async function listNotificationsForRole(role: string): Promise<Notificati
   }
 }
 
+// ลบแจ้งเตือนที่เก่ากว่าจำนวนวันที่กำหนด ใช้ cleanup อัตโนมัติใน popup แจ้งเตือน
+export async function deleteOldNotifications(days = 30): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `DELETE FROM notifications
+       WHERE created_at < NOW() - ($1::int * INTERVAL '1 day')`,
+      [days]
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// ลบแจ้งเตือนออกจาก role เดียว ถ้าไม่มี role ไหนเห็นแล้วจะลบ row ทิ้งจริง
+export async function deleteNotificationForRole(role: string, id: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `UPDATE notifications
+       SET
+         audience = array_remove(audience, $1),
+         unread_for = array_remove(unread_for, $1)
+       WHERE id = $2 AND $1 = ANY(audience)`,
+      [role, id]
+    );
+    await client.query(
+      `DELETE FROM notifications
+       WHERE array_length(audience, 1) IS NULL`
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// ล้างแจ้งเตือนทั้งหมดของ role ปัจจุบันใน popup
+export async function deleteNotificationsForRole(role: string): Promise<number> {
+  const client = await pool.connect();
+  try {
+    await ensureNotificationsTable(client);
+    const res = await client.query(
+      `UPDATE notifications
+       SET
+         audience = array_remove(audience, $1),
+         unread_for = array_remove(unread_for, $1)
+       WHERE $1 = ANY(audience)`,
+      [role]
+    );
+    await client.query(
+      `DELETE FROM notifications
+       WHERE array_length(audience, 1) IS NULL`
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// นับจำนวน notification ที่ role นี้ยังไม่ได้อ่าน
 export async function countUnread(role: string): Promise<number> {
   const client = await pool.connect();
   try {
@@ -294,6 +384,7 @@ export async function countUnread(role: string): Promise<number> {
   }
 }
 
+// mark notification เป็นอ่านแล้ว โดยเอา role ออกจาก unread_for จะระบุ ids หรืออ่านทั้งหมดก็ได้
 export async function markRead(role: string, ids?: string[]) {
   const client = await pool.connect();
   try {
@@ -318,7 +409,13 @@ export async function markRead(role: string, ids?: string[]) {
   }
 }
 
+// เตรียมตารางทั้งหมดแล้วคืน pool ให้ส่วนอื่นนำไป query เองได้
+export async function getPool() {
+  await ensureTables();
+  return pool;
+}
 
+// ดึงรายการ Event ทั้งหมดจากฐานข้อมูลเพื่อส่งให้ API/UI
 export async function listEvents(): Promise<EventRow[]> {
   const client = await pool.connect();
   try {
@@ -335,6 +432,7 @@ export async function listEvents(): Promise<EventRow[]> {
   }
 }
 
+// ดึง Event เดียวตาม id ใช้ก่อน update/delete หรือเช็คว่ามีข้อมูลอยู่จริง
 export async function getEventById(id: string): Promise<EventRow | null> {
   const client = await pool.connect();
   try {
@@ -352,6 +450,7 @@ export async function getEventById(id: string): Promise<EventRow | null> {
   }
 }
 
+// เพิ่ม Event ใหม่จากฟอร์มสร้างงาน โดยเริ่ม issue_status เป็น ready
 export async function insertEvent(payload: {
   id: string;
   title: string;
@@ -396,6 +495,7 @@ export async function insertEvent(payload: {
   }
 }
 
+// อัปเดตสถานะการเบิก/คืนของ Event และบันทึกว่าเสียหายหรือไม่เมื่อคืนอุปกรณ์
 export async function updateEventIssueStatus(
   id: string,
   issueStatus: EventLifecycleStatus,
@@ -427,7 +527,34 @@ export async function updateEventIssueStatus(
   }
 }
 
+// หักจำนวน available ใน stock_items ตามอุปกรณ์ที่ผูกกับ Event นั้น
+export async function deductStockForEventIssue(eventId: string) {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    await ensureStockTable(client);
+    await client.query(
+      `UPDATE stock_items s
+       SET
+         available = GREATEST(0, s.available - e.qty),
+         status = CASE
+           WHEN GREATEST(0, s.available - e.qty) = 0 THEN 'ใช้งานอยู่'
+           ELSE s.status
+         END
+       FROM (
+         SELECT item->>'name' AS name, GREATEST(0, COALESCE((item->>'qty')::int, 0)) AS qty
+         FROM events ev, jsonb_array_elements(ev.equipment) AS item
+         WHERE ev.id = $1
+       ) e
+       WHERE s.name = e.name`,
+      [eventId]
+    );
+  } finally {
+    client.release();
+  }
+}
 
+// บันทึกผลอนุมัติ/ไม่อนุมัติ Event พร้อมช่วงวันที่และรายการอุปกรณ์ที่เลือก
 export async function updateEventDecision(payload: {
   id: string;
   startDate: string;
@@ -462,6 +589,45 @@ export async function updateEventDecision(payload: {
   }
 }
 
+// อัปเดตรายการอุปกรณ์ของ Event จาก flow เบิก/คืนด่วน โดยไม่ต้องผ่านหน้าจออนุมัติ
+export async function updateEventEquipment(payload: {
+  id: string;
+  equipment: EventEquipmentRow[];
+  issueStatus?: EventLifecycleStatus;
+  isDamaged?: boolean;
+  statusText?: string;
+  statusTone?: EventStatusTone;
+}) {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    const res = await client.query(
+      `UPDATE events
+       SET
+         equipment = $2::jsonb,
+         items_count = $3,
+         issue_status = COALESCE($4::text, issue_status),
+         is_damaged = COALESCE($5::boolean, is_damaged),
+         status_text = COALESCE($6::text, status_text),
+         status_tone = COALESCE($7::text, status_tone)
+       WHERE id = $1`,
+      [
+        payload.id,
+        JSON.stringify(payload.equipment),
+        payload.equipment.length,
+        payload.issueStatus ?? null,
+        typeof payload.isDamaged === "boolean" ? payload.isDamaged : null,
+        payload.statusText ?? null,
+        payload.statusTone ?? null,
+      ]
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
+// ลบ Event ตาม id และคืนจำนวนแถวที่ถูกลบให้ API ใช้ตรวจ 404
 export async function deleteEventById(id: string) {
   const client = await pool.connect();
   try {
@@ -473,6 +639,7 @@ export async function deleteEventById(id: string) {
   }
 }
 
+// ดึงข้อมูลอุปกรณ์ทั้งหมดในคลังจาก stock_items
 export async function listStockItems(): Promise<StockRowDb[]> {
   const client = await pool.connect();
   try {
@@ -688,6 +855,7 @@ export async function listStockHistory(limit = 100): Promise<StockHistoryRow[]> 
   }
 }
 
+// ดึงค่า Settings ปัจจุบันจาก app_settings key default
 export async function getSettings(): Promise<Record<string, unknown> | null> {
   const client = await pool.connect();
   try {
@@ -701,6 +869,7 @@ export async function getSettings(): Promise<Record<string, unknown> | null> {
   }
 }
 
+// บันทึกหรืออัปเดต Settings โดยใช้ JSONB เก็บทั้งก้อนใน key default
 export async function upsertSettings(data: Record<string, unknown>): Promise<void> {
   const client = await pool.connect();
   try {
@@ -716,7 +885,7 @@ export async function upsertSettings(data: Record<string, unknown>): Promise<voi
   }
 }
 
-// ✅ บันทึกประวัติการแก้ไขอุปกรณ์ใน Event
+// บันทึกประวัติการเพิ่ม/ลบอุปกรณ์ใน Event ลง equipment_history
 export async function insertEquipmentHistory(payload: {
   id: string;
   eventId: string;
@@ -738,7 +907,7 @@ export async function insertEquipmentHistory(payload: {
   }
 }
 
-// ✅ ดึงประวัติการแก้ไขอุปกรณ์ของ Event
+// ดึงประวัติการแก้ไขอุปกรณ์ของ Event ตาม eventId เรียงจากใหม่ไปเก่า
 export async function listEquipmentHistoryByEvent(eventId: string): Promise<EquipmentHistoryRow[]> {
   const client = await pool.connect();
   try {

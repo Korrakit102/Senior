@@ -25,11 +25,11 @@ export default function EventsReportSection({
   return (
     <>
       <div className="mb-4 text-sm text-zinc-500">
-        แสดง {rows.length} จาก {totalRows} Events
+        แสดง {rows.length} จาก {totalRows} อีเวนต์
       </div>
 
       <ReportsCard
-        title="รายงาน Events"
+        title="รายงานอีเวนต์"
         right={<ReportsExportButton onClick={onExport} />}
       >
         <div className="rounded-2xl border border-zinc-200 bg-white divide-y divide-zinc-200">

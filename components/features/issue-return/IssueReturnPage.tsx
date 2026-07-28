@@ -45,6 +45,70 @@ type Props = {
   onAddDamageRows?: (rows: DamageRow[]) => void;
 };
 
+type QuickEquipmentResponse = {
+  equipment?: Array<{ name: string; qty: number }>;
+  issueStatus?: EventStatus;
+};
+
+function normalizeEventEquipmentItems(
+  equipment: Array<{ name: string; qty: number }> | undefined
+): EventEquipmentItem[] {
+  if (!Array.isArray(equipment)) return [];
+
+  return equipment
+    .filter((item) => item.name && Number(item.qty) > 0)
+    .map((item) => ({
+      name: item.name,
+      qty: Number(item.qty),
+    }));
+}
+
+function mergeEventEquipmentItems(
+  current: EventEquipmentItem[],
+  incoming: EquipmentItem[]
+): EventEquipmentItem[] {
+  const byName = new Map<string, EventEquipmentItem>();
+
+  for (const item of current) {
+    byName.set(item.name, { ...item });
+  }
+
+  for (const item of incoming) {
+    const existing = byName.get(item.name);
+    byName.set(item.name, {
+      name: item.name,
+      qty: (existing?.qty ?? 0) + item.qty,
+    });
+  }
+
+  return Array.from(byName.values());
+}
+
+function subtractEventEquipmentItems(
+  current: EventEquipmentItem[],
+  returned: EquipmentItem[]
+): EventEquipmentItem[] {
+  const byName = new Map<string, EventEquipmentItem>();
+
+  for (const item of current) {
+    byName.set(item.name, { ...item });
+  }
+
+  for (const item of returned) {
+    const existing = byName.get(item.name);
+    if (!existing) continue;
+
+    const nextQty = existing.qty - item.qty;
+    if (nextQty > 0) {
+      byName.set(item.name, { ...existing, qty: nextQty });
+    } else {
+      byName.delete(item.name);
+    }
+  }
+
+  return Array.from(byName.values());
+}
+
 export default function IssueReturnPage({
   role,
   stockData,
@@ -106,9 +170,32 @@ export default function IssueReturnPage({
   const issueList = useMemo(() => getIssueList(events), [events]);
   const inUseList = useMemo(() => getInUseList(events), [events]);
   const returnList = useMemo(() => getReturnList(events), [events]);
-  const visibleList = useMemo(() => getVisibleList(tab, issueList, inUseList, returnList), [tab, issueList, inUseList, returnList]);
+  const quickIssueEvents = useMemo(
+    () => events.filter((event) => event.status !== "returned"),
+    [events]
+  );
+  const quickReturnEvents = useMemo(
+    () => inUseList.filter((event) => (equipmentByEvent[event.id] ?? []).length > 0),
+    [inUseList, equipmentByEvent]
+  );
+  const visibleList = useMemo(
+    () => getVisibleList(tab, issueList, inUseList, returnList),
+    [tab, issueList, inUseList, returnList]
+  );
   const stats = useMemo(() => getIssueReturnStats(events), [events]);
   const emptyText = useMemo(() => getEmptyStateText(tab), [tab]);
+
+  const buildEventEquipmentPayload = (items: EquipmentItem[]) =>
+    items.map((item) => {
+      const stock = stockData.find((s) => s.id === item.id || s.name === item.name);
+      return {
+        name: item.name,
+        qty: item.qty,
+        available: stock?.available ?? 0,
+        category: stock?.system ?? "",
+        pricePerDayTHB: stock?.pricePerDay ?? 0,
+      };
+    });
 
   const handleIssueClick = (event: IssueEvent) => setConfirmIssueEvent(event);
 
@@ -123,11 +210,11 @@ export default function IssueReturnPage({
       if (!res.ok) throw new Error("failed to update issue status");
       setEvents((prev) => prev.map((e) => e.id === confirmIssueEvent.id ? { ...e, status: "inuse" } : e));
       onMarkEventAsIssued?.(confirmIssueEvent.id);
-      setToast(`✅ Issue สำเร็จ: "${confirmIssueEvent.title}"`);
+      setToast(`✅ เบิกอุปกรณ์สำเร็จ: "${confirmIssueEvent.title}"`);
       setConfirmIssueEvent(null);
       setTab("inuse");
     } catch {
-      setToast("ไม่สามารถบันทึกสถานะ In Use ได้");
+      setToast("ไม่สามารถบันทึกสถานะกำลังใช้งานได้");
     }
   };
 
@@ -201,27 +288,135 @@ export default function IssueReturnPage({
       }
       setConfirmReturnEvent(null);
     } catch {
-      setToast("ไม่สามารถบันทึกสถานะ Return ได้");
+      setToast("ไม่สามารถบันทึกสถานะคืนอุปกรณ์ได้");
       setConfirmReturnEvent(null);
     }
   };
 
-  const handleQuickIssue = (items: EquipmentItem[]) => {
-    onDeductStock(items.map((i) => ({ name: i.name, qty: i.qty })));
-    setToast(`✅ Quick Issue สำเร็จ: ${items.map((i) => i.name).join(", ")}`);
+  const handleQuickIssue = async (eventId: string, items: EquipmentItem[]) => {
+    const selectedEvent = events.find((event) => event.id === eventId);
+    const fallbackEquipment = mergeEventEquipmentItems(equipmentByEvent[eventId] ?? [], items);
+
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quickEquipmentAction: "add",
+          equipment: buildEventEquipmentPayload(items),
+        }),
+      });
+      if (!res.ok) throw new Error("failed to add event equipment");
+
+      const data = (await res.json()) as QuickEquipmentResponse;
+      const nextEquipment =
+        data.equipment !== undefined
+          ? normalizeEventEquipmentItems(data.equipment)
+          : fallbackEquipment;
+
+      onDeductStock(items.map((i) => ({ name: i.name, qty: i.qty })));
+      setEquipmentByEvent((prev) => ({ ...prev, [eventId]: nextEquipment }));
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === eventId
+            ? {
+                ...event,
+                status: "inuse",
+                equipment: `${nextEquipment.length} รายการ`,
+              }
+            : event
+        )
+      );
+      onMarkEventAsIssued?.(eventId);
+      setTab("inuse");
+      setToast(`✅ เบิกอุปกรณ์ด่วนสำเร็จ: "${selectedEvent?.title ?? "อีเวนต์ที่เลือก"}"`);
+    } catch {
+      setToast("ไม่สามารถเพิ่มอุปกรณ์เข้าอีเวนต์ได้");
+    }
   };
 
-  const handleQuickReturn = (items: EquipmentItem[], damaged: boolean, photos: File[]) => {
-    if (damaged) {
-      onMarkDamagedStock(items.map((i) => ({ name: i.name, qty: i.qty })));
-    } else {
-      onReturnStock(items.map((i) => ({ name: i.name, qty: i.qty })));
-    }
-    const names = items.map((i) => i.name).join(", ");
-    if (damaged) {
-      setToast(`✅ Quick Return แล้ว (ส่งซ่อม): ${names}${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`);
-    } else {
-      setToast(`✅ Quick Return สำเร็จ: ${names}`);
+  const handleQuickReturn = async (
+    eventId: string,
+    items: EquipmentItem[],
+    damaged: boolean,
+    photos: File[]
+  ) => {
+    const selectedEvent = events.find((event) => event.id === eventId);
+    const fallbackEquipment = subtractEventEquipmentItems(equipmentByEvent[eventId] ?? [], items);
+
+    try {
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quickEquipmentAction: "remove",
+          equipment: items.map((item) => ({ name: item.name, qty: item.qty })),
+          isDamaged: damaged,
+        }),
+      });
+      if (!res.ok) throw new Error("failed to remove event equipment");
+
+      const data = (await res.json()) as QuickEquipmentResponse;
+      const nextEquipment =
+        data.equipment !== undefined
+          ? normalizeEventEquipmentItems(data.equipment)
+          : fallbackEquipment;
+      const nextStatus: EventStatus =
+        data.issueStatus === "returned" || nextEquipment.length === 0
+          ? "returned"
+          : "inuse";
+
+      if (damaged) {
+        onMarkDamagedStock(items.map((i) => ({ name: i.name, qty: i.qty })));
+      } else {
+        onReturnStock(items.map((i) => ({ name: i.name, qty: i.qty })));
+      }
+
+      if (damaged && onAddDamageRows) {
+        const newRows: DamageRow[] = items.map((item, idx) => {
+          const replacementCost = stockData.find((s) => s.name === item.name)?.cost ?? 0;
+          return {
+            id: `dmg-${eventId}-${idx}-${Date.now()}`,
+            itemName: item.name,
+            code: selectedEvent?.code ?? eventId,
+            eventId,
+            date: selectedEvent?.eventDate ?? "",
+            qty: item.qty,
+            cost: replacementCost * item.qty,
+            status: "reported",
+          };
+        });
+        onAddDamageRows(newRows);
+      }
+
+      setEquipmentByEvent((prev) => ({ ...prev, [eventId]: nextEquipment }));
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === eventId
+            ? {
+                ...event,
+                status: nextStatus,
+                equipment: `${nextEquipment.length} รายการ`,
+              }
+            : event
+        )
+      );
+
+      if (nextStatus === "returned") {
+        window.dispatchEvent(new CustomEvent("app:event:returned"));
+        onUnmarkEventAsIssued?.(eventId);
+      }
+
+      const names = items.map((i) => i.name).join(", ");
+      if (damaged) {
+        setToast(
+          `✅ คืนอุปกรณ์ด่วนแล้ว (ส่งซ่อม): "${selectedEvent?.title ?? "อีเวนต์ที่เลือก"}" - ${names}${photos.length > 0 ? ` • แนบรูป ${photos.length} รูป` : ""}`
+        );
+      } else {
+        setToast(`✅ คืนอุปกรณ์ด่วนสำเร็จ: "${selectedEvent?.title ?? "อีเวนต์ที่เลือก"}" - ${names}`);
+      }
+    } catch {
+      setToast("ไม่สามารถบันทึกการคืนอุปกรณ์ของอีเวนต์ได้");
     }
   };
 
@@ -229,9 +424,27 @@ export default function IssueReturnPage({
     <>
       {toast && <IssueReturnToast message={toast} onClose={() => setToast(null)} />}
 
-      <QuickIssueModal open={isQuickIssueOpen} onClose={() => setIsQuickIssueOpen(false)} onConfirm={handleQuickIssue} equipmentOptions={equipmentOptions} />
-      <QuickReturnModal open={isQuickReturnOpen} onClose={() => setIsQuickReturnOpen(false)} onConfirm={handleQuickReturn} equipmentOptions={equipmentOptions} />
-      <ConfirmIssueModal open={!!confirmIssueEvent} event={confirmIssueEvent} equipmentItems={confirmIssueEvent ? (equipmentByEvent[confirmIssueEvent.id] ?? []) : []} onConfirm={handleConfirmIssue} onCancel={() => setConfirmIssueEvent(null)} />
+      <QuickIssueModal
+        open={isQuickIssueOpen}
+        onClose={() => setIsQuickIssueOpen(false)}
+        onConfirm={handleQuickIssue}
+        equipmentOptions={equipmentOptions}
+        eventOptions={quickIssueEvents}
+      />
+      <QuickReturnModal
+        open={isQuickReturnOpen}
+        onClose={() => setIsQuickReturnOpen(false)}
+        onConfirm={handleQuickReturn}
+        eventOptions={quickReturnEvents}
+        eventEquipmentById={equipmentByEvent}
+      />
+      <ConfirmIssueModal
+        open={!!confirmIssueEvent}
+        event={confirmIssueEvent}
+        equipmentItems={confirmIssueEvent ? (equipmentByEvent[confirmIssueEvent.id] ?? []) : []}
+        onConfirm={handleConfirmIssue}
+        onCancel={() => setConfirmIssueEvent(null)}
+      />
       <ConfirmReturnModal
         open={!!confirmReturnEvent}
         event={confirmReturnEvent}

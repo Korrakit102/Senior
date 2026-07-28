@@ -40,7 +40,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
     const newDoc: DocRow = {
       id: `DOC${Date.now()}`,
       title: title.trim(),
-      owner: "Manager Team",
+      owner: "ทีมผู้จัดการ",
       category,
       eventOrCompany: eventOrCompany.trim() || "-",
       description: description.trim(),
@@ -107,13 +107,13 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
 
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-zinc-700">
-              Event / บริษัท
+              อีเวนต์ / บริษัท
             </label>
             <input
               type="text"
               value={eventOrCompany}
               onChange={(e) => setEventOrCompany(e.target.value)}
-              placeholder="เช่น งานสัมมนา 2025 / บริษัท ABC จำกัด"
+              placeholder="เช่น งานสัมมนา 2025 / บริษัท เอบีซี จำกัด"
               className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>

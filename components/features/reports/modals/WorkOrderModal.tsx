@@ -42,7 +42,7 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
     const content = printRef.current.innerHTML;
     const filename = `${docNo}_ใบสั่งงาน`;
     const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { alert("กรุณาอนุญาต popup ในเบราว์เซอร์เพื่อ export PDF"); return; }
+    if (!win) { alert("กรุณาอนุญาตป๊อปอัปในเบราว์เซอร์เพื่อส่งออก PDF"); return; }
     win.document.write(`<!DOCTYPE html>
 <html><head>
   <meta charset="UTF-8"><title>${filename}</title>
@@ -87,7 +87,7 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
               className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
             >
               <Download className="h-4 w-4" />
-              Download PDF
+              ดาวน์โหลด PDF
             </button>
             <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-100">
               <X className="h-4 w-4" />
@@ -154,7 +154,7 @@ function WorkOrderContent({
             <Cell label="รหัสสาขา" value={s(event.branchCode)} />
           </tr>
           <tr>
-            <Cell label="หัวหน้า Project" value={s(event.contactName ?? event.organizer)} />
+            <Cell label="หัวหน้าโครงการ" value={s(event.contactName ?? event.organizer)} />
             <Cell label="เบอร์ติดต่อ" value={s(event.contactPhone)} />
           </tr>
           <tr>
@@ -248,7 +248,7 @@ function WorkOrderContent({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 9.5 }}>
         <thead>
           <tr style={{ background: "#fef2f2" }}>
-            {["ระบุรุ่นรถโชว์", "จำนวน", "ระบุรุ่นรถเทสไดว์", "จำนวน", "เป้าจองรวม", "ยอดสนใจ", "เป้า Pick Up", "เป้า MU-X", "เป้า 4×4", "เป้า TRUCK"].map((h) => (
+            {["ระบุรุ่นรถโชว์", "จำนวน", "ระบุรุ่นรถทดลองขับ", "จำนวน", "เป้าจองรวม", "ยอดสนใจ", "เป้ารถกระบะ", "เป้า MU-X", "เป้า 4×4", "เป้ารถบรรทุก"].map((h) => (
               <th key={h} style={{ border: "1px solid #e4e4e7", padding: "4px 4px", textAlign: "center", whiteSpace: "nowrap" }}>{h}</th>
             ))}
           </tr>

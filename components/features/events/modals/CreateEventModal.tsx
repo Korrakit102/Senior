@@ -123,7 +123,7 @@ function CompanyDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="absolute inset-y-0 right-2 grid place-items-center text-zinc-400 hover:text-zinc-600"
-        aria-label="Toggle"
+        aria-label="เปิด/ปิดรายการบริษัท"
       >
         <ChevronDown
           className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
@@ -135,7 +135,7 @@ function CompanyDropdown({
           <div className="max-h-56 overflow-auto py-1">
             {filtered.length === 0 && !canAddNew ? (
               <div className="px-3 py-2 text-sm text-zinc-500">
-                No companies found
+                ไม่พบบริษัท
               </div>
             ) : (
               <>
@@ -289,7 +289,7 @@ export default function CreateEventModal({
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.eventName.trim()) e.eventName = "กรุณากรอกชื่อ Event";
+    if (!form.eventName.trim()) e.eventName = "กรุณากรอกชื่ออีเวนต์";
     if (!form.companyName.trim()) e.companyName = "กรุณากรอกชื่อบริษัท";
     if (!form.organizerName.trim()) e.organizerName = "กรุณากรอกชื่อลูกค้า";
     if (!form.contactName.trim()) e.contactName = "กรุณากรอกชื่อผู้ติดต่อ";
@@ -338,40 +338,40 @@ export default function CreateEventModal({
   return (
     <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/40" onClick={close} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 p-5">
             <div>
-              <div className="text-lg font-semibold text-zinc-900">Create New Event</div>
+              <div className="text-lg font-semibold text-zinc-900">สร้างอีเวนต์ใหม่</div>
               <div className="mt-1 text-sm text-zinc-500">
-                Fill in Event details and select required equipment
+                กรอกรายละเอียดอีเวนต์และข้อมูลที่จำเป็น
               </div>
             </div>
             <button
               onClick={close}
               className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-              title="Close"
+              title="ปิด"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="px-5 pb-5">
+          <div className="min-h-0 overflow-y-auto px-5 pb-5 pt-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
-                label="Event Name"
+                label="ชื่ออีเวนต์"
                 required
                 value={form.eventName}
                 onChange={(v) => setForm((s) => ({ ...s, eventName: v }))}
                 error={errors.eventName}
               />
               <CompanyDropdown
-                label="Company Name"
+                label="ชื่อบริษัท"
                 required
                 value={form.companyName}
                 onChange={(v) => setForm((s) => ({ ...s, companyName: v }))}
                 onAddOption={handleAddCompany}
-                placeholder="Select or type a company"
+                placeholder="เลือกหรือพิมพ์ชื่อบริษัท"
                 options={companyList}
                 error={errors.companyName}
               />
@@ -379,54 +379,54 @@ export default function CreateEventModal({
 
             <div className="mt-4">
               <Input
-                label="Customer Name"
+                label="ชื่อลูกค้า"
                 required
                 value={form.organizerName}
                 onChange={(v) => setForm((s) => ({ ...s, organizerName: v }))}
-                placeholder="Customer full name"
+                placeholder="ชื่อ-นามสกุลลูกค้า"
                 error={errors.organizerName}
               />
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
-                label="Contact Name"
+                label="ชื่อผู้ติดต่อ"
                 required
                 value={form.contactName}
                 onChange={(v) => setForm((s) => ({ ...s, contactName: v }))}
-                placeholder="Contact person name"
+                placeholder="ชื่อผู้ประสานงาน"
                 error={errors.contactName}
               />
               <Input
-                label="Contact Phone"
+                label="เบอร์โทรผู้ติดต่อ"
                 required
                 value={form.contactPhone}
                 onChange={(v) => setForm((s) => ({ ...s, contactPhone: v }))}
-                placeholder="Enter contact phone"
+                placeholder="กรอกเบอร์โทรผู้ติดต่อ"
                 error={errors.contactPhone}
               />
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
-                label="Branch Code"
+                label="รหัสสาขา"
                 value={form.branchCode}
                 onChange={(v) => setForm((s) => ({ ...s, branchCode: v }))}
-                placeholder="Branch code (optional)"
+                placeholder="รหัสสาขา (ไม่บังคับ)"
               />
               <Input
-                label="Budget (THB)"
+                label="งบประมาณ (บาท)"
                 required
                 value={form.budgetTHB}
                 onChange={(v) => setForm((s) => ({ ...s, budgetTHB: v }))}
-                placeholder="Enter budget amount"
+                placeholder="กรอกจำนวนงบประมาณ"
                 error={errors.budgetTHB}
               />
             </div>
 
             <div className="mt-4">
               <TextArea
-                label="Description"
+                label="คำอธิบาย"
                 value={form.description}
                 onChange={(v) => setForm((s) => ({ ...s, description: v }))}
               />
@@ -434,16 +434,16 @@ export default function CreateEventModal({
 
             <div className="mt-4">
               <Input
-                label="Number of Attendees"
+                label="จำนวนผู้เข้าร่วม"
                 value={form.attendees}
                 onChange={(v) => setForm((s) => ({ ...s, attendees: v }))}
-                placeholder="Enter number of attendees"
+                placeholder="กรอกจำนวนผู้เข้าร่วม"
               />
             </div>
 
             <div className="mt-4">
               <Input
-                label="Venue/Location"
+                label="สถานที่จัดงาน"
                 required
                 value={form.venue}
                 onChange={(v) => setForm((s) => ({ ...s, venue: v }))}
@@ -453,7 +453,7 @@ export default function CreateEventModal({
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
-                label="Event Start Date"
+                label="วันเริ่มอีเวนต์"
                 required
                 type="date"
                 value={form.startDate}
@@ -461,7 +461,7 @@ export default function CreateEventModal({
                 error={errors.startDate}
               />
               <Input
-                label="Event End Date"
+                label="วันจบอีเวนต์"
                 required
                 type="date"
                 value={form.endDate}
@@ -475,13 +475,13 @@ export default function CreateEventModal({
                 onClick={close}
                 className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
               >
-                Cancel
+                ยกเลิก
               </button>
               <button
                 onClick={submit}
                 className="h-10 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
               >
-                Create Event
+                สร้างอีเวนต์
               </button>
             </div>
           </div>

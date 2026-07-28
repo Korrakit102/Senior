@@ -249,9 +249,9 @@ export default function ManageEquipmentModal({
             <div className="flex items-start justify-between gap-3 p-5">
               <div className="min-w-0">
                 <div className="truncate text-lg font-semibold text-zinc-900">{eventTitle}</div>
-                <div className="mt-1 text-sm text-zinc-500">เลือกอุปกรณ์และกำหนดวันเบิก/คืนก่อนอนุมัติ Event</div>
+                <div className="mt-1 text-sm text-zinc-500">เลือกอุปกรณ์และกำหนดวันเบิก/คืนก่อนอนุมัติอีเวนต์</div>
               </div>
-              <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50" title="Close">
+              <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50" title="ปิด">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -421,18 +421,18 @@ export default function ManageEquipmentModal({
             <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
               <div className="flex items-start justify-between gap-3 p-5">
                 <div>
-                  <div className="text-lg font-semibold text-zinc-900">Select Equipment</div>
-                  <div className="mt-1 text-sm text-zinc-500">Choose equipment and specify quantity</div>
+                  <div className="text-lg font-semibold text-zinc-900">เลือกอุปกรณ์</div>
+                  <div className="mt-1 text-sm text-zinc-500">เลือกอุปกรณ์และระบุจำนวน</div>
                 </div>
                 <button onClick={() => setIsSelectOpen(false)} className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"><X className="h-4 w-4" /></button>
               </div>
               <div className="px-5 pb-5">
                 <div ref={equipRef} className="relative">
-                  <div className="mb-1 text-xs font-semibold text-zinc-700">Equipment</div>
+                  <div className="mb-1 text-xs font-semibold text-zinc-700">อุปกรณ์</div>
                   <button onClick={() => setIsEquipOpen((v) => !v)} type="button"
                     className={["flex h-10 w-full items-center justify-between rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900", selectErrors.name ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200"].join(" ")}>
                     <span className={selectedName ? "text-zinc-900" : "text-zinc-500"}>
-                      {selectedName ? `${selectedName} (Available: ${selectedOption?.available ?? "-"})` : "Select equipment"}
+                      {selectedName ? `${selectedName} (พร้อมใช้: ${selectedOption?.available ?? "-"})` : "เลือกอุปกรณ์"}
                     </span>
                     <ChevronDown className="h-4 w-4 text-zinc-500" />
                   </button>
@@ -447,7 +447,7 @@ export default function ManageEquipmentModal({
                             <button key={opt.name} type="button"
                               onClick={() => { setSelectedName(opt.name); setSelectErrors((s) => ({ ...s, name: undefined })); setIsEquipOpen(false); }}
                               className={["flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition", opt.name === selectedName ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-50"].join(" ")}>
-                              {opt.name} (Available: {opt.available})
+                              {opt.name} (พร้อมใช้: {opt.available})
                             </button>
                           ))
                         )}
@@ -456,7 +456,7 @@ export default function ManageEquipmentModal({
                   )}
                 </div>
                 <div className="mt-4">
-                  <div className="mb-1 text-xs font-semibold text-zinc-700">Quantity</div>
+                  <div className="mb-1 text-xs font-semibold text-zinc-700">จำนวน</div>
                   <input
                     type="number"
                     min={1}
@@ -466,7 +466,7 @@ export default function ManageEquipmentModal({
                       setQty(e.target.value);
                       setSelectErrors((s) => ({ ...s, qty: undefined }));
                     }}
-                    placeholder="Enter quantity"
+                    placeholder="กรอกจำนวน"
                     className={["h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none", selectErrors.qty ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200 focus:ring-2 focus:ring-zinc-200"].join(" ")}
                   />
                   {selectErrors.qty ? (
@@ -478,7 +478,7 @@ export default function ManageEquipmentModal({
                   ) : null}
                 </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
-                  <button onClick={() => setIsSelectOpen(false)} className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Cancel</button>
+                  <button onClick={() => setIsSelectOpen(false)} className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">ยกเลิก</button>
                   <button
                     onClick={addSelected}
                     disabled={!selectedName || !qty.trim() || Number(qty) <= 0 || (!!selectedOption && Number(qty) > maxQty)}
@@ -489,7 +489,7 @@ export default function ManageEquipmentModal({
                         : "bg-zinc-900 hover:bg-zinc-800",
                     ].join(" ")}
                   >
-                    Add
+                    เพิ่ม
                   </button>
                 </div>
               </div>
@@ -504,7 +504,7 @@ export default function ManageEquipmentModal({
           <div className="absolute inset-0 flex items-center justify-center p-4">
             <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl">
               <div className="text-lg font-semibold text-zinc-900">ยืนยันการบันทึกผล</div>
-              <div className="mt-2 text-sm text-zinc-500">ต้องการบันทึก Event นี้เป็นแบบไหน</div>
+              <div className="mt-2 text-sm text-zinc-500">ต้องการบันทึกอีเวนต์นี้เป็นแบบไหน</div>
               {hasInsufficient && (
                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                   ⚠️ มีอุปกรณ์ไม่เพียงพอ {insufficientItems.length} รายการ ยืนยันจะอนุมัติต่อไปใช่ไหม?

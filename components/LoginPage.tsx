@@ -20,15 +20,15 @@ const ROLE_CONFIG: {
 }[] = [
   {
     role: "SA",
-    label: "Customer",
-    desc: "ดูข้อมูล Events",
+    label: "ลูกค้า",
+    desc: "ดูข้อมูลอีเวนต์",
     color: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
     badge: "bg-blue-600",
     short: "C",
   },
   {
     role: "Manager",
-    label: "Manager",
+    label: "ผู้จัดการ",
     desc: "จัดการระบบทั้งหมด",
     color:
       "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -37,8 +37,8 @@ const ROLE_CONFIG: {
   },
   {
     role: "Stockkeeper",
-    label: "Stockkeeper",
-    desc: "จัดการ Stock & Issue/Return",
+    label: "เจ้าหน้าที่คลัง",
+    desc: "จัดการสต็อกและการเบิก/คืน",
     color: "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
     badge: "bg-violet-600",
     short: "K",
@@ -84,9 +84,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           </div>
           <div>
             <div className="text-xl font-bold text-zinc-900">
-              Event Stock Manager
+              ระบบจัดการสต็อกอีเวนต์
             </div>
-            <div className="text-sm text-zinc-500">ระบบบริหารจัดการ Stock</div>
+            <div className="text-sm text-zinc-500">ระบบบริหารจัดการสต็อก</div>
           </div>
         </div>
 
@@ -94,7 +94,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <h2 className="mb-1 text-lg font-semibold text-zinc-900">
             เข้าสู่ระบบ
           </h2>
-          <p className="mb-6 text-sm text-zinc-500">เลือก Role แล้วกรอกรหัสผ่าน</p>
+          <p className="mb-6 text-sm text-zinc-500">เลือกบทบาทแล้วกรอกรหัสผ่าน</p>
 
           {/* Role selector */}
           <div className="mb-5 space-y-2">
@@ -174,7 +174,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
 
         <p className="mt-4 text-center text-xs text-zinc-400">
-          Event Stock Manager &copy; {new Date().getFullYear()}
+          ระบบจัดการสต็อกอีเวนต์ &copy; {new Date().getFullYear()}
         </p>
       </div>
     </div>

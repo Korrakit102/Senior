@@ -1,16 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ArrowRight, Package2, Plus, X } from "lucide-react";
-import type { EquipmentItem, EquipmentOption } from "../types";
+import type { EquipmentItem, EquipmentOption, IssueEvent } from "../types";
 import { mergeEquipmentItems, removeEquipmentItem } from "../helpers";
 import SelectEquipmentModal from "./SelectEquipmentModal";
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onConfirm: (items: EquipmentItem[]) => void;
+  onConfirm: (eventId: string, items: EquipmentItem[]) => void | Promise<void>;
   equipmentOptions: EquipmentOption[];
+  eventOptions: IssueEvent[];
 };
 
 export default function QuickIssueModal({
@@ -18,12 +19,17 @@ export default function QuickIssueModal({
   onClose,
   onConfirm,
   equipmentOptions,
+  eventOptions,
 }: Props) {
   const [items, setItems] = useState<EquipmentItem[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [isSelectOpen, setIsSelectOpen] = useState(false);
 
   React.useEffect(() => {
-    if (!open) setItems([]);
+    if (!open) {
+      setItems([]);
+      setSelectedEventId("");
+    }
   }, [open]);
 
   React.useEffect(() => {
@@ -45,6 +51,22 @@ export default function QuickIssueModal({
     setItems((prev) => removeEquipmentItem(prev, id));
   };
 
+  const availableEquipmentOptions = useMemo(
+    () =>
+      equipmentOptions
+        .map((option) => {
+          const selectedQty = items.find((item) => item.id === option.id)?.qty ?? 0;
+          return {
+            ...option,
+            available: Math.max(0, option.available - selectedQty),
+          };
+        })
+        .filter((option) => option.available > 0),
+    [equipmentOptions, items]
+  );
+
+  const canConfirm = selectedEventId && items.length > 0;
+
   if (!open) return null;
 
   return (
@@ -53,7 +75,7 @@ export default function QuickIssueModal({
         open={isSelectOpen}
         onClose={() => setIsSelectOpen(false)}
         onAdd={addItem}
-        equipmentOptions={equipmentOptions}
+        equipmentOptions={availableEquipmentOptions}
       />
 
       <div className="fixed inset-0 z-[140]">
@@ -64,10 +86,10 @@ export default function QuickIssueModal({
             <div className="flex items-start justify-between gap-3 p-5">
               <div>
                 <div className="text-lg font-semibold text-zinc-900">
-                  Quick Issue Equipment
+                  เบิกอุปกรณ์ด่วน
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
-                  เบิกอุปกรณ์เร่งด่วน (ไม่ผ่าน Event)
+                  เลือกอีเวนต์และเพิ่มอุปกรณ์ที่จะเบิก
                 </div>
               </div>
 
@@ -79,7 +101,28 @@ export default function QuickIssueModal({
               </button>
             </div>
 
-            <div className="space-y-4 px-5 pb-5">
+            <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 pb-5">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-zinc-700">
+                  เลือกอีเวนต์ <span className="text-red-600">*</span>
+                </label>
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => {
+                    setSelectedEventId(e.target.value);
+                    setItems([]);
+                  }}
+                  className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="">เลือกอีเวนต์...</option>
+                  {eventOptions.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} ({event.code}) - {event.company}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-zinc-800">
                   อุปกรณ์ที่เลือก ({items.length})
@@ -87,7 +130,8 @@ export default function QuickIssueModal({
 
                 <button
                   onClick={() => setIsSelectOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 shadow-sm"
+                  disabled={!selectedEventId || availableEquipmentOptions.length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
                   เพิ่มอุปกรณ์
@@ -138,10 +182,11 @@ export default function QuickIssueModal({
 
                 <button
                   onClick={() => {
-                    onConfirm(items);
+                    if (!selectedEventId) return;
+                    void onConfirm(selectedEventId, items);
                     onClose();
                   }}
-                  disabled={items.length === 0}
+                  disabled={!canConfirm}
                   className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ArrowRight className="h-4 w-4" />

@@ -36,14 +36,14 @@ export default function CalendarDayEventsModal({
           <div className="flex items-start justify-between gap-3 p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">
-                รายการ Event วันที่ {dateLabel}
+                รายการอีเวนต์วันที่ {dateLabel}
               </div>
               <div className="mt-1 text-sm text-zinc-500">ทั้งหมด {events.length} รายการ</div>
             </div>
             <button
               onClick={onClose}
               className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-              title="Close"
+              title="ปิด"
             >
               <X className="h-4 w-4" />
             </button>

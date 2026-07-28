@@ -22,7 +22,7 @@ export default function StockReportSection({
       </div>
 
       <ReportsCard
-        title="รายงาน Stock"
+        title="รายงานสต็อก"
         right={<ReportsExportButton onClick={onExport} />}
       >
         <div className="overflow-x-auto">

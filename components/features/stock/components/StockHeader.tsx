@@ -16,7 +16,7 @@ export default function StockHeader({ onExport, onAdd }: Props) {
 
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-            จัดการ Stock
+            จัดการสต็อก
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
             ระบบจัดการและค้นหาอุปกรณ์

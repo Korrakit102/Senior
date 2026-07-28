@@ -9,6 +9,7 @@ import {
   Settings,
   Bell,
   ChevronDown,
+  X,
 } from "lucide-react";
 
 import EventsPage from "./features/events/EventsPage";
@@ -236,64 +237,65 @@ const tabsByRole: Record<
   SA: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
   ],
   Manager: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
     {
       key: "stock",
-      label: "Stock",
+      label: "สต็อก",
       icon: <Boxes className="h-4 w-4" />,
     },
     {
       key: "issueReturn",
-      label: "Issue/Return",
+      label: "เบิก/คืน",
       icon: <ArrowLeftRight className="h-4 w-4" />,
     },
     {
       key: "reports",
-      label: "Reports",
+      label: "รายงาน",
       icon: <BarChart3 className="h-4 w-4" />,
     },
     {
       key: "settings",
-      label: "Settings",
+      label: "ตั้งค่า",
       icon: <Settings className="h-4 w-4" />,
     },
   ],
   Stockkeeper: [
     {
       key: "events",
-      label: "Events",
+      label: "อีเวนต์",
       icon: <CalendarDays className="h-4 w-4" />,
     },
     {
       key: "stock",
-      label: "Stock",
+      label: "สต็อก",
       icon: <Boxes className="h-4 w-4" />,
     },
     {
       key: "issueReturn",
-      label: "Issue/Return",
+      label: "เบิก/คืน",
       icon: <ArrowLeftRight className="h-4 w-4" />,
     },
     {
       key: "reports",
-      label: "Reports",
+      label: "รายงาน",
       icon: <BarChart3 className="h-4 w-4" />,
     },
   ],
 };
 
 function getRoleLabel(role: Role) {
-  if (role === "SA") return "Customer";
-  return role;
+  if (role === "SA") return "ลูกค้า";
+  if (role === "Manager") return "ผู้จัดการ";
+  return "เจ้าหน้าที่คลัง";
 }
 
 function getRoleShort(role: Role) {
@@ -310,9 +312,9 @@ function LogoMark() {
       </div>
       <div className="leading-tight">
         <div className="text-base font-semibold text-zinc-900">
-          Event Stock Manager
+          ระบบจัดการสต็อกอีเวนต์
         </div>
-        <div className="text-xs text-zinc-500">ระบบบริหารจัดการ Stock</div>
+        <div className="text-xs text-zinc-500">ระบบบริหารจัดการสต็อก</div>
       </div>
     </div>
   );
@@ -583,6 +585,51 @@ export default function AppShell() {
     }
   };
 
+  const deleteNotification = async (id: string) => {
+    const previousList = notifList;
+    const removed = previousList.find((n) => n.id === id);
+
+    setNotifList((prev) => prev.filter((n) => n.id !== id));
+    if (removed?.unreadFor.includes(role)) {
+      setUnread((count) => Math.max(0, count - 1));
+    }
+
+    try {
+      const res = await fetch(
+        `/api/notifications?role=${role}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) throw new Error("delete notification failed");
+      const data = (await res.json()) as { unread?: number };
+      if (typeof data.unread === "number") setUnread(data.unread);
+    } catch {
+      setNotifList(previousList);
+      if (removed?.unreadFor.includes(role)) {
+        setUnread((count) => count + 1);
+      }
+    }
+  };
+
+  const clearNotifications = async () => {
+    const previousList = notifList;
+    const previousUnread = unread;
+
+    setNotifList([]);
+    setUnread(0);
+
+    try {
+      const res = await fetch(`/api/notifications?role=${role}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("clear notifications failed");
+      const data = (await res.json()) as { unread?: number };
+      if (typeof data.unread === "number") setUnread(data.unread);
+    } catch {
+      setNotifList(previousList);
+      setUnread(previousUnread);
+    }
+  };
+
   const renderTabButton = (t: {
     key: Tab;
     label: string;
@@ -611,7 +658,7 @@ export default function AppShell() {
       {stockSaveError && (
         <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2">
           <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 shadow-lg">
-            <span className="text-sm font-medium text-red-700">บันทึกข้อมูล Stock ไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
+            <span className="text-sm font-medium text-red-700">บันทึกข้อมูลสต็อกไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
             <button
               onClick={() => setStockSaveError(false)}
               className="ml-2 text-xs font-semibold text-red-500 hover:text-red-700"
@@ -661,7 +708,7 @@ export default function AppShell() {
               {roleDropdownOpen && (
                 <div className="absolute right-0 top-[calc(100%+8px)] z-[200] w-52 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
                   <div className="px-3 py-2 text-xs font-semibold text-zinc-500">
-                    สลับ Role
+                    สลับบทบาท
                   </div>
                   {(["SA", "Manager", "Stockkeeper"] as Role[]).map((r) => (
                     <button
@@ -723,8 +770,19 @@ export default function AppShell() {
                 <div className="absolute right-0 top-[calc(100%+10px)] z-[200] w-80 rounded-2xl border border-zinc-200 bg-white shadow-xl">
                   <div className="flex items-center justify-between px-4 pb-2 pt-3">
                     <div className="text-sm font-semibold text-zinc-900">การแจ้งเตือน</div>
-                    <div className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
-                      {unread} ใหม่
+                    <div className="flex items-center gap-2">
+                      {notifList.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearNotifications}
+                          className="rounded-full px-2 py-1 text-[11px] font-semibold text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700"
+                        >
+                          ล้างทั้งหมด
+                        </button>
+                      )}
+                      <div className="rounded-full bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-600">
+                        {unread} ใหม่
+                      </div>
                     </div>
                   </div>
                   <div className="max-h-96 divide-y divide-zinc-100 overflow-auto">
@@ -753,6 +811,15 @@ export default function AppShell() {
                           {n.unreadFor.includes(role) ? (
                             <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-500" />
                           ) : null}
+                          <button
+                            type="button"
+                            onClick={() => deleteNotification(n.id)}
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                            title="ลบแจ้งเตือน"
+                            aria-label="ลบแจ้งเตือน"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       ))
                     )}
@@ -768,7 +835,7 @@ export default function AppShell() {
               </div>
               <div className="hidden leading-tight md:block">
                 <div className="text-sm font-semibold text-zinc-900">
-                  {getRoleLabel(role)} Team
+                  ทีม{getRoleLabel(role)}
                 </div>
                 <div className="text-xs text-zinc-500">{getRoleLabel(role)}</div>
               </div>
@@ -812,7 +879,7 @@ export default function AppShell() {
         )}
         {tab === "settings" && role === "Manager" && <SettingsPage />}
         {tab === "settings" && role !== "Manager" && (
-          <div className="px-6 py-10 text-sm text-zinc-500">Manager Only</div>
+          <div className="px-6 py-10 text-sm text-zinc-500">สำหรับผู้จัดการเท่านั้น</div>
         )}
       </div>
     </div>

@@ -27,7 +27,7 @@ export default function StockTable({
         <table className="min-w-[1100px] w-full">
           <thead className="bg-white">
             <tr className="border-b border-zinc-200 text-left text-xs font-semibold text-zinc-500">
-              <th className="px-6 py-4">ID / รหัส</th>
+              <th className="px-6 py-4">รหัสระบบ / รหัสอุปกรณ์</th>
               <th className="px-6 py-4">ชื่ออุปกรณ์</th>
               <th className="px-6 py-4">ยี่ห้อ</th>
               <th className="px-6 py-4">ประเภท</th>

@@ -92,7 +92,7 @@ export default function ConfirmIssueModal({
                 onClick={onConfirm}
                 className="flex-1 h-10 rounded-xl bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-700"
               >
-                ยืนยัน Issue
+                ยืนยันการเบิก
               </button>
             </div>
           </div>

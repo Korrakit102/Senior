@@ -7,7 +7,7 @@ export default function ReportsHeader() {
         รายงาน
       </h1>
       <p className="mt-1 text-sm text-zinc-500">
-        รายงานและสรุปการใช้งานอุปกรณ์และ Events
+        รายงานและสรุปการใช้งานอุปกรณ์และอีเวนต์
       </p>
     </div>
   );

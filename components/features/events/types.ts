@@ -24,6 +24,8 @@ export type EventItem = {
   // ✅ เพิ่ม: ติดตามว่า stockkeeper Issue ไปแล้วหรือยัง
   // ถ้า true = ล็อคปุ่มแก้ไขอุปกรณ์
   isIssued?: boolean;
+
+  paymentReceipt?: PaymentReceipt;
 };
 
 export type SelectedEquipment = {
@@ -32,6 +34,13 @@ export type SelectedEquipment = {
   available: number;
   category: string;
   pricePerDayTHB: number;
+};
+
+export type PaymentReceipt = {
+  fileName: string;
+  fileType: string;
+  dataUrl: string;
+  uploadedAt: string;
 };
 
 export type NotificationItem = {
@@ -47,6 +56,7 @@ export type NotificationItem = {
 export type EventApiItem = EventItem & {
   equipment?: SelectedEquipment[];
   issueStatus?: string;
+  paymentReceipt?: PaymentReceipt;
 };
 
 export type CreateForm = {

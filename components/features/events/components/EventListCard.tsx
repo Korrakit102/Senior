@@ -20,6 +20,13 @@ export default function EventListCard({
 }: EventListCardProps) {
   // ✅ ล็อคปุ่มแก้ไขเมื่อ stockkeeper Issue ไปแล้ว
   const isLocked = event.isIssued === true;
+  const canManageEquipment =
+    role === "Manager" &&
+    (event.status.text === "รออนุมัติ" || event.status.text === "อนุมัติแล้ว");
+  const canDeleteEvent =
+    role === "SA" &&
+    !isLocked &&
+    (event.status.text === "รออนุมัติ" || event.status.text === "ไม่อนุมัติ");
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -53,7 +60,7 @@ export default function EventListCard({
           </button>
 
           {/* ✅ ปุ่มจัดการอุปกรณ์ */}
-          {role === "Manager" && (event.status.tone === "pending" || event.status.tone === "success") && (
+          {canManageEquipment && (
             isLocked ? (
               // ล็อคแล้ว - stockkeeper Issue ไปแล้ว
               <div
@@ -77,7 +84,7 @@ export default function EventListCard({
           )}
 
           {/* ปุ่มลบ - SA เห็น แต่ไม่แสดงเมื่ออุปกรณ์ถูกเบิกออกไปแล้ว */}
-          {role === "SA" && !isLocked && (
+          {canDeleteEvent && (
             <button
               onClick={() => onDelete(event.id)}
               className="rounded-2xl border border-red-200 bg-white p-2.5 text-red-600 shadow-sm hover:bg-red-50"

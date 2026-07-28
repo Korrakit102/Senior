@@ -2,11 +2,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import {
+  confirmEventPayment,
   deleteEventById,
   getEventById,
   updateEventDecision,
   updateEventEquipment,
   updateEventIssueStatus,
+  updateEventPaymentReceipt,
 } from "@/lib/db";
 import type { EventEquipmentRow } from "@/lib/db";
 
@@ -126,8 +128,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         body.quickEquipmentAction === "remove" && body.isDamaged === true
           ? true
           : undefined,
-      statusText: isFullyReturned ? "เสร็จสิ้น" : undefined,
-      statusTone: isFullyReturned ? "progress" : undefined,
+      statusText: isFullyReturned ? "รอชำระเงิน" : undefined,
+      statusTone: isFullyReturned ? "pending" : undefined,
     });
 
     if (rowCount === 0) {
@@ -138,6 +140,61 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       ok: true,
       equipment: nextEquipment,
       issueStatus: isFullyReturned ? "returned" : "inuse",
+    });
+  }
+
+  // ─── อัปโหลดใบเสร็จ / ยืนยันการชำระเงิน ───────────────────────────────────
+  if (body?.paymentAction) {
+    if (!["uploadReceipt", "confirmPayment"].includes(body.paymentAction)) {
+      return NextResponse.json({ error: "invalid paymentAction" }, { status: 400 });
+    }
+
+    const current = await getEventById(id);
+    if (!current) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    if (body.paymentAction === "uploadReceipt") {
+      const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
+      const fileType = typeof body.fileType === "string" ? body.fileType.trim() : "";
+      const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
+
+      if (!fileName || !dataUrl.startsWith("data:")) {
+        return NextResponse.json({ error: "receipt file is required" }, { status: 400 });
+      }
+
+      const uploadedAt = new Date().toISOString();
+      const rowCount = await updateEventPaymentReceipt({
+        id,
+        fileName,
+        fileType,
+        dataUrl,
+        uploadedAt,
+      });
+
+      if (rowCount === 0) {
+        return NextResponse.json({ error: "event not found" }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        ok: true,
+        status: { text: "รอตรวจสอบการชำระเงิน", tone: "pending" },
+        paymentReceipt: { fileName, fileType, dataUrl, uploadedAt },
+      });
+    }
+
+    if (!current.receipt_data_url) {
+      return NextResponse.json({ error: "receipt is required" }, { status: 400 });
+    }
+
+    const rowCount = await confirmEventPayment(id);
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "payment cannot be confirmed" }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      status: { text: "เสร็จสิ้น", tone: "progress" },
     });
   }
 

@@ -25,6 +25,15 @@ function mapEvent(row: EventRow) {
     contactName: row.contact_name ?? undefined,
     contactPhone: row.contact_phone ?? undefined,
     equipment: Array.isArray(row.equipment) ? row.equipment : [],
+    paymentReceipt:
+      row.receipt_file_name && row.receipt_data_url && row.receipt_uploaded_at
+        ? {
+            fileName: row.receipt_file_name,
+            fileType: row.receipt_file_type ?? "",
+            dataUrl: row.receipt_data_url,
+            uploadedAt: row.receipt_uploaded_at,
+          }
+        : undefined,
   };
 }
 
@@ -38,9 +47,16 @@ function nextEventId(rows: EventRow[]) {
   return `EVT${String(max + 1).padStart(3, "0")}`;
 }
 
-export async function GET() {
+function canReturnEventForRole(row: EventRow, role: string | null) {
+  if (role !== "Stockkeeper") return true;
+
+  return row.status_tone === "success" || row.status_tone === "progress";
+}
+
+export async function GET(req: NextRequest) {
+  const role = req.nextUrl.searchParams.get("role");
   const rows = await listEvents();
-  return NextResponse.json(rows.map(mapEvent));
+  return NextResponse.json(rows.filter((row) => canReturnEventForRole(row, role)).map(mapEvent));
 }
 
 export async function POST(req: NextRequest) {

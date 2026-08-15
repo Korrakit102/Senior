@@ -26,11 +26,13 @@ function mapEvent(row: EventRow) {
     contactPhone: row.contact_phone ?? undefined,
     equipment: Array.isArray(row.equipment) ? row.equipment : [],
     paymentReceipt:
-      row.receipt_file_name && row.receipt_data_url && row.receipt_uploaded_at
+      row.receipt_file_name &&
+      (row.receipt_file_path || row.receipt_data_url) &&
+      row.receipt_uploaded_at
         ? {
             fileName: row.receipt_file_name,
             fileType: row.receipt_file_type ?? "",
-            dataUrl: row.receipt_data_url,
+            dataUrl: row.receipt_file_path ?? row.receipt_data_url ?? "",
             uploadedAt: row.receipt_uploaded_at,
           }
         : undefined,

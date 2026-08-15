@@ -1,6 +1,8 @@
 "use server";
 
 import { NextRequest, NextResponse } from "next/server";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import {
   confirmEventPayment,
   deleteEventById,
@@ -11,6 +13,63 @@ import {
   updateEventPaymentReceipt,
 } from "@/lib/db";
 import type { EventEquipmentRow } from "@/lib/db";
+
+const MAX_RECEIPT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const RECEIPT_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "receipts");
+
+// อัปโหลดสลิปการชำระเงิน: รับเป็น multipart/form-data แล้วเขียนไฟล์ลงดิสก์
+// (ไม่เก็บ base64 ก้อนใหญ่ใน DB เพราะ data URI ที่ยาวเกิน ~2MB เปิดในแท็บใหม่ไม่ได้บนเบราว์เซอร์ตระกูล Chromium)
+async function handleUploadReceiptForm(req: NextRequest, id: string) {
+  const formData = await req.formData();
+  const role = formData.get("role");
+
+  if (role !== "SA") {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const current = await getEventById(id);
+  if (!current) {
+    return NextResponse.json({ error: "event not found" }, { status: 404 });
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return NextResponse.json({ error: "receipt file is required" }, { status: 400 });
+  }
+  if (!file.type.startsWith("image/")) {
+    return NextResponse.json({ error: "receipt must be an image file" }, { status: 400 });
+  }
+  if (file.size > MAX_RECEIPT_FILE_SIZE) {
+    return NextResponse.json({ error: "receipt file is too large" }, { status: 400 });
+  }
+
+  await mkdir(RECEIPT_UPLOAD_DIR, { recursive: true });
+
+  const storedFileName = `${id}-${Date.now()}${path.extname(file.name)}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await writeFile(path.join(RECEIPT_UPLOAD_DIR, storedFileName), buffer);
+
+  const filePath = `/uploads/receipts/${storedFileName}`;
+  const uploadedAt = new Date().toISOString();
+
+  const rowCount = await updateEventPaymentReceipt({
+    id,
+    fileName: file.name,
+    fileType: file.type,
+    filePath,
+    uploadedAt,
+  });
+
+  if (rowCount === 0) {
+    return NextResponse.json({ error: "event not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    status: { text: "รอตรวจสอบการชำระเงิน", tone: "pending" },
+    paymentReceipt: { fileName: file.name, fileType: file.type, dataUrl: filePath, uploadedAt },
+  });
+}
 
 function normalizeEquipmentList(value: unknown): EventEquipmentRow[] {
   if (!Array.isArray(value)) return [];
@@ -88,6 +147,12 @@ function subtractEquipment(
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
+
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    return handleUploadReceiptForm(req, id);
+  }
+
   const body = await req.json().catch(() => null);
 
   // ─── เพิ่ม/คืนอุปกรณ์แบบด่วน โดยผูกกับ Event ที่เลือก ─────────────────────
@@ -143,9 +208,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     });
   }
 
-  // ─── อัปโหลดใบเสร็จ / ยืนยันการชำระเงิน ───────────────────────────────────
+  // ─── ยืนยันการชำระเงิน (อัปโหลดสลิปแยกไปที่ multipart branch ด้านบนแล้ว) ─────
   if (body?.paymentAction) {
-    if (!["uploadReceipt", "confirmPayment"].includes(body.paymentAction)) {
+    if (body.paymentAction !== "confirmPayment") {
       return NextResponse.json({ error: "invalid paymentAction" }, { status: 400 });
     }
 
@@ -154,44 +219,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
-    if (body.paymentAction === "uploadReceipt") {
-      if (body.role !== "SA") {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 });
-      }
-
-      const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
-      const fileType = typeof body.fileType === "string" ? body.fileType.trim() : "";
-      const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
-
-      if (!fileName || !dataUrl.startsWith("data:")) {
-        return NextResponse.json({ error: "receipt file is required" }, { status: 400 });
-      }
-
-      const uploadedAt = new Date().toISOString();
-      const rowCount = await updateEventPaymentReceipt({
-        id,
-        fileName,
-        fileType,
-        dataUrl,
-        uploadedAt,
-      });
-
-      if (rowCount === 0) {
-        return NextResponse.json({ error: "event not found" }, { status: 404 });
-      }
-
-      return NextResponse.json({
-        ok: true,
-        status: { text: "รอตรวจสอบการชำระเงิน", tone: "pending" },
-        paymentReceipt: { fileName, fileType, dataUrl, uploadedAt },
-      });
-    }
-
     if (body.role !== "Manager") {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
-    if (!current.receipt_data_url) {
+    if (!current.receipt_data_url && !current.receipt_file_path) {
       return NextResponse.json({ error: "receipt is required" }, { status: 400 });
     }
 

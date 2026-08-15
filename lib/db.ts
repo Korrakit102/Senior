@@ -77,6 +77,7 @@ export type EventRow = {
   receipt_file_type: string | null;
   receipt_data_url: string | null;
   receipt_uploaded_at: string | null;
+  receipt_file_path: string | null;
 };
 
 // รูปแบบข้อมูล stock item ที่อ่านจากตาราง stock_items
@@ -194,13 +195,18 @@ async function ensureEventsTable(client?: PoolClient) {
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS receipt_uploaded_at TIMESTAMPTZ;
     `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS receipt_file_path TEXT;
+    `);
     // ข้อมูลเก่าที่คืนอุปกรณ์แล้วแต่ยังไม่มีใบเสร็จ ต้องกลับเข้าขั้นตอนรอชำระเงินตาม flow ใหม่
     await c.query(`
       UPDATE events
       SET status_text = 'รอชำระเงิน',
           status_tone = 'pending'
       WHERE issue_status = 'returned'
-        AND receipt_data_url IS NULL;
+        AND receipt_data_url IS NULL
+        AND receipt_file_path IS NULL;
     `);
   } finally {
     if (!client) c.release();
@@ -460,7 +466,7 @@ export async function listEvents(): Promise<EventRow[]> {
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
          organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment,
-         receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at
+         receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events ORDER BY created_at DESC, id DESC`
     );
     return res.rows;
@@ -478,7 +484,7 @@ export async function getEventById(id: string): Promise<EventRow | null> {
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
          organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment,
-         receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at
+         receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events WHERE id = $1 LIMIT 1`,
       [id]
     );
@@ -665,12 +671,12 @@ export async function updateEventEquipment(payload: {
   }
 }
 
-// บันทึกใบเสร็จที่ลูกค้าแนบ และเปลี่ยนสถานะให้ผู้จัดการตรวจสอบการชำระเงิน
+// บันทึกสลิปการชำระเงินที่ลูกค้าแนบ (เก็บเป็น path ไฟล์บนดิสก์) และเปลี่ยนสถานะให้ผู้จัดการตรวจสอบ
 export async function updateEventPaymentReceipt(payload: {
   id: string;
   fileName: string;
   fileType: string;
-  dataUrl: string;
+  filePath: string;
   uploadedAt: string;
 }) {
   const client = await pool.connect();
@@ -681,7 +687,7 @@ export async function updateEventPaymentReceipt(payload: {
        SET
          receipt_file_name = $2,
          receipt_file_type = $3,
-         receipt_data_url = $4,
+         receipt_file_path = $4,
          receipt_uploaded_at = $5,
          status_text = 'รอตรวจสอบการชำระเงิน',
          status_tone = 'pending'
@@ -690,7 +696,7 @@ export async function updateEventPaymentReceipt(payload: {
         payload.id,
         payload.fileName,
         payload.fileType,
-        payload.dataUrl,
+        payload.filePath,
         payload.uploadedAt,
       ]
     );
@@ -700,7 +706,7 @@ export async function updateEventPaymentReceipt(payload: {
   }
 }
 
-// ผู้จัดการยืนยันว่าใบเสร็จถูกต้องและปิดงานเป็นเสร็จสิ้น
+// ผู้จัดการยืนยันว่าสลิปถูกต้องและปิดงานเป็นเสร็จสิ้น
 export async function confirmEventPayment(id: string) {
   const client = await pool.connect();
   try {
@@ -710,7 +716,7 @@ export async function confirmEventPayment(id: string) {
        SET
          status_text = 'เสร็จสิ้น',
          status_tone = 'progress'
-       WHERE id = $1 AND receipt_data_url IS NOT NULL`,
+       WHERE id = $1 AND (receipt_data_url IS NOT NULL OR receipt_file_path IS NOT NULL)`,
       [id]
     );
     return res.rowCount ?? 0;

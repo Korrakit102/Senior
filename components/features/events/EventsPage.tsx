@@ -47,15 +47,6 @@ function canShowEventForRole(
   );
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function EventsPage({
   role,
   stockData,
@@ -428,23 +419,20 @@ export default function EventsPage({
   const handleUploadReceipt = async (eventId: string, file: File) => {
     const targetEvent = events.find((event) => event.id === eventId);
 
-    if (file.size > 2 * 1024 * 1024) {
-      setToast("ไฟล์สลิปต้องไม่เกิน 2MB");
+    if (file.size > 5 * 1024 * 1024) {
+      setToast("ไฟล์สลิปต้องไม่เกิน 5MB");
       return;
     }
 
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const formData = new FormData();
+      formData.append("paymentAction", "uploadReceipt");
+      formData.append("role", role);
+      formData.append("file", file);
+
       const res = await fetch(`/api/events/${eventId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentAction: "uploadReceipt",
-          role,
-          fileName: file.name,
-          fileType: file.type,
-          dataUrl,
-        }),
+        body: formData,
       });
       if (!res.ok) throw new Error("failed to upload receipt");
 

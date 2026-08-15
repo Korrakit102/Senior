@@ -155,6 +155,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
 
     if (body.paymentAction === "uploadReceipt") {
+      if (body.role !== "SA") {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 });
+      }
+
       const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
       const fileType = typeof body.fileType === "string" ? body.fileType.trim() : "";
       const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
@@ -181,6 +185,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         status: { text: "รอตรวจสอบการชำระเงิน", tone: "pending" },
         paymentReceipt: { fileName, fileType, dataUrl, uploadedAt },
       });
+    }
+
+    if (body.role !== "Manager") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
     if (!current.receipt_data_url) {

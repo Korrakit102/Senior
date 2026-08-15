@@ -429,7 +429,7 @@ export default function EventsPage({
     const targetEvent = events.find((event) => event.id === eventId);
 
     if (file.size > 2 * 1024 * 1024) {
-      setToast("ไฟล์ใบเสร็จต้องไม่เกิน 2MB");
+      setToast("ไฟล์สลิปต้องไม่เกิน 2MB");
       return;
     }
 
@@ -440,6 +440,7 @@ export default function EventsPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentAction: "uploadReceipt",
+          role,
           fileName: file.name,
           fileType: file.type,
           dataUrl,
@@ -465,13 +466,13 @@ export default function EventsPage({
       );
 
       pushNotification({
-        title: "ลูกค้าแนบใบเสร็จแล้ว",
+        title: "ลูกค้าแนบสลิปการชำระเงินแล้ว",
         message: `${targetEvent?.title ?? "อีเวนต์"} รอผู้จัดการตรวจสอบการชำระเงิน`,
         audience: ["Manager"],
       });
-      setToast(`แนบใบเสร็จแล้ว: "${targetEvent?.title ?? "อีเวนต์"}"`);
+      setToast(`แนบสลิปการชำระเงินแล้ว: "${targetEvent?.title ?? "อีเวนต์"}"`);
     } catch {
-      setToast("ไม่สามารถแนบใบเสร็จได้");
+      setToast("ไม่สามารถแนบสลิปการชำระเงินได้");
     }
   };
 
@@ -482,7 +483,7 @@ export default function EventsPage({
       const res = await fetch(`/api/events/${eventId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ paymentAction: "confirmPayment" }),
+        body: JSON.stringify({ paymentAction: "confirmPayment", role }),
       });
       if (!res.ok) throw new Error("failed to confirm payment");
 
@@ -635,6 +636,8 @@ export default function EventsPage({
           onOpenDetail={setDetailEventId}
           onManageItems={onManageItems}
           onDeleteEvent={onDeleteEvent}
+          onUploadReceipt={handleUploadReceipt}
+          onConfirmPayment={handleConfirmPayment}
         />
       )}
 

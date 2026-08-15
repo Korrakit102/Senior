@@ -1,4 +1,5 @@
-import { Eye, Package, Trash2, Lock } from "lucide-react";
+import { useRef, useState } from "react";
+import { Eye, Package, Trash2, Lock, Upload, CheckCircle2, ExternalLink } from "lucide-react";
 import EventStatusPill from "./EventStatusPill";
 import type { EventItem, Role } from "../types";
 import { fmtDateRangeThai } from "../helpers";
@@ -9,6 +10,8 @@ type EventListCardProps = {
   onOpenDetail: (eventId: string) => void;
   onManageItems: (eventId: string) => void;
   onDelete: (eventId: string) => void;
+  onUploadReceipt: (eventId: string, file: File) => Promise<void>;
+  onConfirmPayment: (eventId: string) => Promise<void>;
 };
 
 export default function EventListCard({
@@ -17,7 +20,12 @@ export default function EventListCard({
   onOpenDetail,
   onManageItems,
   onDelete,
+  onUploadReceipt,
+  onConfirmPayment,
 }: EventListCardProps) {
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
   // ✅ ล็อคปุ่มแก้ไขเมื่อ stockkeeper Issue ไปแล้ว
   const isLocked = event.isIssued === true;
   const canManageEquipment =
@@ -27,6 +35,38 @@ export default function EventListCard({
     role === "SA" &&
     !isLocked &&
     (event.status.text === "รออนุมัติ" || event.status.text === "ไม่อนุมัติ");
+
+  const canUploadSlip =
+    role === "SA" &&
+    (event.status.text === "รอชำระเงิน" ||
+      event.status.text === "รอตรวจสอบการชำระเงิน");
+  const canConfirmPayment =
+    role === "Manager" &&
+    event.status.text === "รอตรวจสอบการชำระเงิน" &&
+    Boolean(event.paymentReceipt);
+  const shouldShowPaymentSection =
+    canUploadSlip ||
+    event.status.text === "รอชำระเงิน" ||
+    event.status.text === "รอตรวจสอบการชำระเงิน";
+
+  const handleReceiptFile = async (file: File | undefined) => {
+    if (!file) return;
+    setIsUploadingReceipt(true);
+    try {
+      await onUploadReceipt(event.id, file);
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    setIsConfirmingPayment(true);
+    try {
+      await onConfirmPayment(event.id);
+    } finally {
+      setIsConfirmingPayment(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -122,6 +162,58 @@ export default function EventListCard({
           </div>
         </div>
       </div>
+
+      {shouldShowPaymentSection && (
+        <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-4">
+          {canUploadSlip && (
+            <>
+              <input
+                ref={receiptInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  void handleReceiptFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => receiptInputRef.current?.click()}
+                disabled={isUploadingReceipt}
+                className="inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Upload className="h-4 w-4" />
+                {isUploadingReceipt ? "กำลังแนบ..." : "แนบสลิปการชำระเงิน"}
+              </button>
+            </>
+          )}
+
+          {event.paymentReceipt && (
+            <a
+              href={event.paymentReceipt.dataUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50"
+            >
+              <ExternalLink className="h-4 w-4" />
+              เปิดดูสลิป
+            </a>
+          )}
+
+          {canConfirmPayment && (
+            <button
+              type="button"
+              onClick={() => void handleConfirmPayment()}
+              disabled={isConfirmingPayment}
+              className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {isConfirmingPayment ? "กำลังยืนยัน..." : "ยืนยันการชำระเงิน"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

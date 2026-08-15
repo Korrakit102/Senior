@@ -8,6 +8,8 @@ type EventsListProps = {
   onOpenDetail: (eventId: string) => void;
   onManageItems: (eventId: string) => void;
   onDeleteEvent: (eventId: string) => void;
+  onUploadReceipt: (eventId: string, file: File) => Promise<void>;
+  onConfirmPayment: (eventId: string) => Promise<void>;
 };
 
 export default function EventsList({
@@ -17,6 +19,8 @@ export default function EventsList({
   onOpenDetail,
   onManageItems,
   onDeleteEvent,
+  onUploadReceipt,
+  onConfirmPayment,
 }: EventsListProps) {
   return (
     <div className="mt-5 space-y-4">
@@ -40,6 +44,8 @@ export default function EventsList({
           onOpenDetail={onOpenDetail}
           onManageItems={onManageItems}
           onDelete={onDeleteEvent}
+          onUploadReceipt={onUploadReceipt}
+          onConfirmPayment={onConfirmPayment}
         />
       ))}
     </div>

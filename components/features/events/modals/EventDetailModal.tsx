@@ -298,7 +298,7 @@ export default function EventDetailModal({
                       การชำระเงิน
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      ลูกค้าแนบใบเสร็จ หลังจากคืนอุปกรณ์ครบแล้ว
+                      ลูกค้าแนบสลิปการชำระเงิน หลังจากคืนอุปกรณ์ครบแล้ว
                     </div>
                   </div>
 
@@ -307,7 +307,7 @@ export default function EventDetailModal({
                       <input
                         ref={receiptInputRef}
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="image/*"
                         className="hidden"
                         onChange={(e) => {
                           void handleReceiptFile(e.target.files?.[0]);
@@ -321,7 +321,7 @@ export default function EventDetailModal({
                         className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <Upload className="h-4 w-4" />
-                        {isUploadingReceipt ? "กำลังแนบ..." : "แนบใบเสร็จ"}
+                        {isUploadingReceipt ? "กำลังแนบ..." : "แนบสลิปการชำระเงิน"}
                       </button>
                     </>
                   )}
@@ -332,7 +332,7 @@ export default function EventDetailModal({
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-emerald-800">
-                          แนบใบเสร็จแล้ว
+                          แนบสลิปแล้ว
                         </div>
                         <div className="mt-1 truncate text-xs text-emerald-700">
                           {event.paymentReceipt.fileName}
@@ -347,7 +347,7 @@ export default function EventDetailModal({
                           className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50"
                         >
                           <ExternalLink className="h-4 w-4" />
-                          เปิดดูใบเสร็จ
+                          เปิดดูสลิป
                         </a>
 
                         {canConfirmPayment && (
@@ -358,7 +358,7 @@ export default function EventDetailModal({
                             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <CheckCircle2 className="h-4 w-4" />
-                            {isConfirmingPayment ? "กำลังยืนยัน..." : "ยืนยันการชำระ"}
+                            {isConfirmingPayment ? "กำลังยืนยัน..." : "ยืนยันการชำระเงิน"}
                           </button>
                         )}
                       </div>
@@ -367,8 +367,8 @@ export default function EventDetailModal({
                 ) : (
                   <div className="mt-4 rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-4 text-sm text-zinc-500">
                     {role === "SA"
-                      ? "ยังไม่ได้แนบใบเสร็จ กรุณาแนบหลังชำระเงิน"
-                      : "ยังไม่มีใบเสร็จจากลูกค้า"}
+                      ? "ยังไม่ได้แนบสลิปการชำระเงิน กรุณาแนบหลังชำระเงิน"
+                      : "ยังไม่มีสลิปจากลูกค้า"}
                   </div>
                 )}
               </div>

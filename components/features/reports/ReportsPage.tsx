@@ -48,12 +48,70 @@ import WorkOrderModal from "./modals/WorkOrderModal";
 function daysBetween(range: string): number {
   const parts = range.split(" - ");
   if (parts.length < 2) return 1;
+
+  const startDate = new Date(parts[0].trim());
+  const endDate = new Date(parts[1].trim());
+  if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime())) {
+    return Math.max(
+      1,
+      Math.round((endDate.getTime() - startDate.getTime()) / 86400000) + 1
+    );
+  }
+
   const a = parts[0].trim().split("-").map(Number);
   const b = parts[1].trim().split("-").map(Number);
   if (a.length < 3 || b.length < 3 || !a[0] || !b[0]) return 1;
   const s = Date.UTC(a[0], a[1] - 1, a[2]);
   const e = Date.UTC(b[0], b[1] - 1, b[2]);
   return Math.max(1, Math.round((e - s) / 86400000) + 1);
+}
+
+function formatDocDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function toDocDateISO(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toISOString().split("T")[0];
+}
+
+function formatShortDate(value: string, withYear: boolean) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" as const } : {}),
+  });
+}
+
+function formatEventDateRange(range: string) {
+  const [startRaw, endRaw] = range.split(" - ").map((part) => part.trim());
+  if (!startRaw || !endRaw) return range;
+
+  const startDate = new Date(startRaw);
+  const endDate = new Date(endRaw);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return range;
+  }
+
+  const sameDay = startDate.toDateString() === endDate.toDateString();
+  if (sameDay) return formatShortDate(endRaw, true);
+
+  const sameYear = startDate.getFullYear() === endDate.getFullYear();
+  const startText = formatShortDate(startRaw, !sameYear);
+  const endText = formatShortDate(endRaw, true);
+  return `${startText} - ${endText}`;
 }
 
 type Props = {
@@ -76,6 +134,9 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [invoiceEvent, setInvoiceEvent] = useState<EventReportRow | null>(null);
   const [quotationEvent, setQuotationEvent] = useState<EventReportRow | null>(null);
   const [workOrderEvent, setWorkOrderEvent] = useState<EventReportRow | null>(null);
+  const [hiddenEventDocIds, setHiddenEventDocIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   const [docsRows, setDocsRows] = useState<DocRow[]>([
     {
@@ -214,6 +275,12 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
             text: string;
             tone: "success" | "pending" | "progress" | "rejected";
           };
+          paymentReceipt?: {
+            fileName: string;
+            fileType: string;
+            dataUrl: string;
+            uploadedAt: string;
+          };
           equipment?: Array<{ name: string; qty: number; category: string; pricePerDayTHB: number }>;
         }>;
         setEventReportRows(
@@ -245,6 +312,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
               attendees: r.attendees,
               description: r.desc,
               equipment,
+              paymentReceipt: r.paymentReceipt,
               status: {
                 text: r.status.text,
                 tone: (r.status.tone === "success" || r.status.tone === "progress") ? "success" : "pending",
@@ -258,6 +326,41 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     };
     loadEvents();
   }, []);
+
+  const eventDocumentRows = useMemo<DocRow[]>(
+    () =>
+      eventReportRows
+        .filter((event) => event.status.text === "เสร็จสิ้น" && event.paymentReceipt)
+        .map((event) => {
+          const receipt = event.paymentReceipt;
+          const uploadedAtISO = toDocDateISO(receipt?.uploadedAt ?? "");
+          const id = `EVT-${event.id}-RECEIPT`;
+
+          const doc: DocRow = {
+            id,
+            title: `ใบเสร็จ - ${event.title}`,
+            owner: "ทีมลูกค้า",
+            category: "receipt",
+            eventOrCompany: `${event.title}\n${event.company}\n${formatEventDateRange(event.date)}`,
+            description: "ใบเสร็จที่ลูกค้าแนบและผู้จัดการยืนยันการชำระเงินแล้ว",
+            uploadedAt: formatDocDate(receipt?.uploadedAt ?? ""),
+            uploadedAtISO,
+            sizeLabel: receipt?.fileType || "ไฟล์แนบ",
+            fileName: receipt?.fileName,
+            fileUrl: receipt?.dataUrl,
+            source: "event",
+          };
+
+          return doc;
+        })
+        .filter((doc) => !hiddenEventDocIds.has(doc.id)),
+    [eventReportRows, hiddenEventDocIds]
+  );
+
+  const allDocsRows = useMemo(
+    () => [...eventDocumentRows, ...docsRows],
+    [eventDocumentRows, docsRows]
+  );
 
   const damageRows = useMemo<DamageRow[]>(() => {
     // Per-item rows from return flow take priority; exclude event-level rows for those events
@@ -294,11 +397,11 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   );
 
   const filteredDocs = useMemo(
-    () => filterDocsRows(docsRows, query, docCategory, docSort),
-    [docsRows, query, docCategory, docSort]
+    () => filterDocsRows(allDocsRows, query, docCategory, docSort),
+    [allDocsRows, query, docCategory, docSort]
   );
 
-  const docStats = useMemo(() => getDocStats(docsRows), [docsRows]);
+  const docStats = useMemo(() => getDocStats(allDocsRows), [allDocsRows]);
   const searchPlaceholder = useMemo(() => getSearchPlaceholder(tab), [tab]);
 
   const handleExportStock = () => {
@@ -344,22 +447,45 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const onAddDoc = () => setIsAddDocOpen(true);
 
   const onViewDoc = (id: string) => {
-    const doc = docsRows.find((r) => r.id === id);
+    const doc = allDocsRows.find((r) => r.id === id);
     if (doc) setSelectedDoc(doc);
   };
 
   const onDownloadDoc = (id: string) => {
-    alert(`ดาวน์โหลด: ${id}`);
+    const doc = allDocsRows.find((r) => r.id === id);
+    if (!doc) return;
+
+    if (!doc.fileUrl) {
+      alert(`ดาวน์โหลด: ${id}`);
+      return;
+    }
+
+    const a = document.createElement("a");
+    a.href = doc.fileUrl;
+    a.download = doc.fileName ?? doc.title;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
   const onDeleteDoc = (id: string) => {
-    const doc = docsRows.find((d) => d.id === id);
+    const doc = allDocsRows.find((d) => d.id === id);
     if (doc) setDeleteDoc(doc);
   };
 
   const handleConfirmDeleteDoc = () => {
     if (!deleteDoc) return;
-    setDocsRows((prev) => prev.filter((d) => d.id !== deleteDoc.id));
+    if (deleteDoc.source === "event") {
+      setHiddenEventDocIds((prev) => {
+        const next = new Set(prev);
+        next.add(deleteDoc.id);
+        return next;
+      });
+    } else {
+      setDocsRows((prev) => prev.filter((d) => d.id !== deleteDoc.id));
+    }
+    if (selectedDoc?.id === deleteDoc.id) setSelectedDoc(null);
     setDeleteDoc(null);
   };
 
@@ -382,7 +508,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       <ReportsTabs tab={tab} onChange={setTab} role={role} />
 
       {tab === "docs" && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <ReportsSummaryCard
             icon={<FileText className="h-5 w-5" />}
             value={docStats.total}
@@ -406,6 +532,12 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
             value={docStats.workorder}
             label="ใบสั่งงาน"
             tone="violet"
+          />
+          <ReportsSummaryCard
+            icon={<FileText className="h-5 w-5" />}
+            value={docStats.receipt}
+            label="ใบเสร็จ"
+            tone="amber"
           />
           <ReportsSummaryCard
             icon={<FileText className="h-5 w-5" />}
@@ -461,7 +593,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           <DocsReportSection
             role={role}
             rows={filteredDocs}
-            totalRows={docsRows.length}
+            totalRows={allDocsRows.length}
             onExport={handleExportDocs}
             onAddDoc={onAddDoc}
             onViewDoc={onViewDoc}

@@ -50,14 +50,14 @@ export default function DocsReportSection({
         right={<ReportsExportButton onClick={onExport} />}
       >
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-separate border-spacing-0">
+          <table className="w-full min-w-[1040px] border-separate border-spacing-0">
             <thead>
               <tr className="text-left text-xs font-semibold text-zinc-500">
                 <th className="border-b border-zinc-200 py-3 pr-4">เอกสาร</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">หมวดหมู่</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">อีเวนต์ / บริษัท</th>
                 <th className="border-b border-zinc-200 py-3 pr-4">คำอธิบาย</th>
-                <th className="border-b border-zinc-200 py-3 pr-4">วันที่อัปโหลด</th>
+                <th className="w-36 border-b border-zinc-200 py-3 pr-4">วันที่อัปโหลด</th>
                 <th className="border-b border-zinc-200 py-3 text-right">การจัดการ</th>
               </tr>
             </thead>
@@ -92,7 +92,9 @@ export default function DocsReportSection({
                   </td>
 
                   <td className="border-b border-zinc-100 py-4 pr-4 align-top">
-                    <div className="text-sm text-zinc-700">{d.uploadedAt}</div>
+                    <div className="whitespace-nowrap text-sm text-zinc-800">
+                      {d.uploadedAt}
+                    </div>
                   </td>
 
                   <td className="border-b border-zinc-100 py-4 text-right align-top">

@@ -12,10 +12,17 @@ const categoryOptions: { value: DocCategory; label: string }[] = [
   { value: "invoice", label: "ใบแจ้งหนี้" },
   { value: "quotation", label: "ใบเสนอราคา" },
   { value: "workorder", label: "ใบสั่งงาน" },
+  { value: "receipt", label: "ใบเสร็จ" },
   { value: "contract", label: "สัญญา" },
   { value: "report", label: "รายงาน" },
   { value: "other", label: "อื่นๆ" },
 ];
+
+type SelectedFile = {
+  name: string;
+  type: string;
+  dataUrl: string;
+};
 
 export default function AddDocModal({ open, onClose, onConfirm }: Props) {
   const [title, setTitle] = useState("");
@@ -23,8 +30,29 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
   const [eventOrCompany, setEventOrCompany] = useState("");
   const [description, setDescription] = useState("");
   const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
 
   if (!open) return null;
+
+  const handleFileChange = (file: File | undefined) => {
+    if (!file) {
+      setFileName("");
+      setSelectedFile(null);
+      return;
+    }
+
+    setFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setSelectedFile({
+        name: file.name,
+        type: file.type,
+        dataUrl: String(reader.result ?? ""),
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = () => {
     if (!title.trim()) return;
@@ -46,7 +74,10 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
       description: description.trim(),
       uploadedAt,
       uploadedAtISO,
-      sizeLabel: fileName ? "—" : "—",
+      sizeLabel: selectedFile?.type || "ไฟล์แนบ",
+      fileName: selectedFile?.name ?? fileName,
+      fileUrl: selectedFile?.dataUrl,
+      source: "manual",
     };
 
     onConfirm(newDoc);
@@ -55,6 +86,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
     setEventOrCompany("");
     setDescription("");
     setFileName("");
+    setSelectedFile(null);
     onClose();
   };
 
@@ -84,7 +116,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="เช่น ใบแจ้งหนี้ - งานสัมมนา 2025"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
 
@@ -95,7 +127,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as DocCategory)}
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
             >
               {categoryOptions.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -114,7 +146,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
               value={eventOrCompany}
               onChange={(e) => setEventOrCompany(e.target.value)}
               placeholder="เช่น งานสัมมนา 2025 / บริษัท เอบีซี จำกัด"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
 
@@ -127,7 +159,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="อธิบายเนื้อหาเอกสารโดยย่อ..."
               rows={3}
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-red-400 focus:ring-2 focus:ring-red-100"
             />
           </div>
 
@@ -137,13 +169,13 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
             </label>
             <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-zinc-300 px-4 py-3 hover:bg-zinc-50">
               <FilePlus className="h-5 w-5 text-zinc-400" />
-              <span className="text-sm text-zinc-500">
+              <span className={`text-sm ${fileName ? "text-zinc-900" : "text-zinc-500"}`}>
                 {fileName || "คลิกเพื่อเลือกไฟล์..."}
               </span>
               <input
                 type="file"
                 className="hidden"
-                onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")}
+                onChange={(e) => handleFileChange(e.target.files?.[0])}
               />
             </label>
           </div>

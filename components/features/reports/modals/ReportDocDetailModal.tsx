@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ExternalLink } from "lucide-react";
 import type { DocRow } from "../types";
 import ReportsCategoryPill from "../components/ReportsCategoryPill";
 
@@ -45,7 +46,7 @@ export default function ReportDocDetailModal({
           </button>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-xl bg-zinc-50 p-4">
             <div className="text-xs font-semibold text-zinc-500">หมวดหมู่</div>
             <div className="mt-2">
@@ -70,13 +71,6 @@ export default function ReportDocDetailModal({
               {selectedDoc.uploadedAt}
             </div>
           </div>
-
-          <div className="rounded-xl bg-zinc-50 p-4">
-            <div className="text-xs font-semibold text-zinc-500">ขนาดไฟล์</div>
-            <div className="mt-2 text-sm font-medium text-zinc-900">
-              {selectedDoc.sizeLabel}
-            </div>
-          </div>
         </div>
 
         <div className="mt-4 rounded-xl bg-zinc-50 p-4">
@@ -94,6 +88,18 @@ export default function ReportDocDetailModal({
             {selectedDoc.description}
           </div>
         </div>
+
+        {selectedDoc.fileUrl && (
+          <a
+            href={selectedDoc.fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm hover:bg-zinc-50"
+          >
+            <ExternalLink className="h-4 w-4" />
+            เปิดไฟล์แนบ
+          </a>
+        )}
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ export default function ReportsSearchBar({
               <option value="invoice">ใบแจ้งหนี้</option>
               <option value="quotation">ใบเสนอราคา</option>
               <option value="workorder">ใบสั่งงาน</option>
+              <option value="receipt">ใบเสร็จ</option>
               <option value="report">รายงาน</option>
               <option value="contract">สัญญา</option>
               <option value="other">อื่นๆ</option>

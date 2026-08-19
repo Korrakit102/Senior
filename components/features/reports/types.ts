@@ -8,6 +8,7 @@ export type DocCategory =
   | "invoice"
   | "quotation"
   | "workorder"
+  | "receipt"
   | "report"
   | "contract"
   | "other";
@@ -38,10 +39,18 @@ export type EventReportRow = {
   attendees?: number;
   description?: string;
   equipment: EventEquipmentItem[];
+  paymentReceipt?: PaymentReceipt;
   status: {
     text: string;
     tone: "success" | "pending";
   };
+};
+
+export type PaymentReceipt = {
+  fileName: string;
+  fileType: string;
+  dataUrl: string;
+  uploadedAt: string;
 };
 
 export type DocRow = {
@@ -54,6 +63,9 @@ export type DocRow = {
   uploadedAt: string;
   uploadedAtISO: string;
   sizeLabel: string;
+  fileName?: string;
+  fileUrl?: string;
+  source?: "manual" | "event";
 };
 
 export type DamageRow = {

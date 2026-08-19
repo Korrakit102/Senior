@@ -74,8 +74,10 @@ export function getDocStats(docsRows: DocRow[]) {
     invoice: docsRows.filter((d) => d.category === "invoice").length,
     quotation: docsRows.filter((d) => d.category === "quotation").length,
     workorder: docsRows.filter((d) => d.category === "workorder").length,
+    receipt: docsRows.filter((d) => d.category === "receipt").length,
     other: docsRows.filter(
-      (d) => !["invoice", "quotation", "workorder"].includes(d.category)
+      (d) =>
+        !["invoice", "quotation", "workorder", "receipt"].includes(d.category)
     ).length,
   };
 }

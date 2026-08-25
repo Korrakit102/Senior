@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Eye, Package, Trash2, Lock, Upload, CheckCircle2, ExternalLink } from "lucide-react";
 import EventStatusPill from "./EventStatusPill";
+import ConfirmUploadReceiptModal from "../modals/ConfirmUploadReceiptModal";
+import ConfirmPaymentApprovalModal from "../modals/ConfirmPaymentApprovalModal";
 import type { EventItem, Role } from "../types";
 import { fmtDateRangeThai } from "../helpers";
 
@@ -26,6 +28,9 @@ export default function EventListCard({
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [pendingReceiptFile, setPendingReceiptFile] = useState<File | null>(null);
+  const [pendingReceiptPreviewUrl, setPendingReceiptPreviewUrl] = useState<string | null>(null);
+  const [isConfirmPaymentModalOpen, setIsConfirmPaymentModalOpen] = useState(false);
   // ✅ ล็อคปุ่มแก้ไขเมื่อ stockkeeper Issue ไปแล้ว
   const isLocked = event.isIssued === true;
   const canManageEquipment =
@@ -49,6 +54,16 @@ export default function EventListCard({
     event.status.text === "รอชำระเงิน" ||
     event.status.text === "รอตรวจสอบการชำระเงิน";
 
+  useEffect(() => {
+    if (!pendingReceiptFile) {
+      setPendingReceiptPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(pendingReceiptFile);
+    setPendingReceiptPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingReceiptFile]);
+
   const handleReceiptFile = async (file: File | undefined) => {
     if (!file) return;
     setIsUploadingReceipt(true);
@@ -59,6 +74,12 @@ export default function EventListCard({
     }
   };
 
+  const handleConfirmUploadReceipt = async () => {
+    if (!pendingReceiptFile) return;
+    await handleReceiptFile(pendingReceiptFile);
+    setPendingReceiptFile(null);
+  };
+
   const handleConfirmPayment = async () => {
     setIsConfirmingPayment(true);
     try {
@@ -66,6 +87,11 @@ export default function EventListCard({
     } finally {
       setIsConfirmingPayment(false);
     }
+  };
+
+  const handleConfirmPaymentApproval = async () => {
+    await handleConfirmPayment();
+    setIsConfirmPaymentModalOpen(false);
   };
 
   return (
@@ -173,7 +199,8 @@ export default function EventListCard({
                 accept="image/*"
                 className="hidden"
                 onChange={(e) => {
-                  void handleReceiptFile(e.target.files?.[0]);
+                  const file = e.target.files?.[0];
+                  if (file) setPendingReceiptFile(file);
                   e.target.value = "";
                 }}
               />
@@ -204,7 +231,7 @@ export default function EventListCard({
           {canConfirmPayment && (
             <button
               type="button"
-              onClick={() => void handleConfirmPayment()}
+              onClick={() => setIsConfirmPaymentModalOpen(true)}
               disabled={isConfirmingPayment}
               className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -214,6 +241,22 @@ export default function EventListCard({
           )}
         </div>
       )}
+
+      <ConfirmUploadReceiptModal
+        open={Boolean(pendingReceiptFile)}
+        fileName={pendingReceiptFile?.name ?? ""}
+        previewUrl={pendingReceiptPreviewUrl}
+        isSubmitting={isUploadingReceipt}
+        onConfirm={() => void handleConfirmUploadReceipt()}
+        onCancel={() => setPendingReceiptFile(null)}
+      />
+
+      <ConfirmPaymentApprovalModal
+        open={isConfirmPaymentModalOpen}
+        isSubmitting={isConfirmingPayment}
+        onConfirm={() => void handleConfirmPaymentApproval()}
+        onCancel={() => setIsConfirmPaymentModalOpen(false)}
+      />
     </div>
   );
 }

@@ -20,6 +20,8 @@ import {
 import type { EventItem, Role, SelectedEquipment } from "../types";
 import { formatTHB, fmtDateRangeThai, parseDateRange, toDateLocal } from "../helpers";
 import EventStatusPill from "../components/EventStatusPill";
+import ConfirmUploadReceiptModal from "./ConfirmUploadReceiptModal";
+import ConfirmPaymentApprovalModal from "./ConfirmPaymentApprovalModal";
 
 export default function EventDetailModal({
   open,
@@ -41,6 +43,9 @@ export default function EventDetailModal({
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [pendingReceiptFile, setPendingReceiptFile] = useState<File | null>(null);
+  const [pendingReceiptPreviewUrl, setPendingReceiptPreviewUrl] = useState<string | null>(null);
+  const [isConfirmPaymentModalOpen, setIsConfirmPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -55,8 +60,20 @@ export default function EventDetailModal({
     if (!open) {
       setIsUploadingReceipt(false);
       setIsConfirmingPayment(false);
+      setPendingReceiptFile(null);
+      setIsConfirmPaymentModalOpen(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!pendingReceiptFile) {
+      setPendingReceiptPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(pendingReceiptFile);
+    setPendingReceiptPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingReceiptFile]);
 
   if (!open || !event) return null;
 
@@ -131,6 +148,12 @@ export default function EventDetailModal({
     }
   };
 
+  const handleConfirmUploadReceipt = async () => {
+    if (!pendingReceiptFile) return;
+    await handleReceiptFile(pendingReceiptFile);
+    setPendingReceiptFile(null);
+  };
+
   const handleConfirmPayment = async () => {
     setIsConfirmingPayment(true);
     try {
@@ -138,6 +161,11 @@ export default function EventDetailModal({
     } finally {
       setIsConfirmingPayment(false);
     }
+  };
+
+  const handleConfirmPaymentApproval = async () => {
+    await handleConfirmPayment();
+    setIsConfirmPaymentModalOpen(false);
   };
 
   return (
@@ -310,7 +338,8 @@ export default function EventDetailModal({
                         accept="image/*"
                         className="hidden"
                         onChange={(e) => {
-                          void handleReceiptFile(e.target.files?.[0]);
+                          const file = e.target.files?.[0];
+                          if (file) setPendingReceiptFile(file);
                           e.target.value = "";
                         }}
                       />
@@ -353,7 +382,7 @@ export default function EventDetailModal({
                         {canConfirmPayment && (
                           <button
                             type="button"
-                            onClick={() => void handleConfirmPayment()}
+                            onClick={() => setIsConfirmPaymentModalOpen(true)}
                             disabled={isConfirmingPayment}
                             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
@@ -457,6 +486,22 @@ export default function EventDetailModal({
           </div>
         </div>
       </div>
+
+      <ConfirmUploadReceiptModal
+        open={Boolean(pendingReceiptFile)}
+        fileName={pendingReceiptFile?.name ?? ""}
+        previewUrl={pendingReceiptPreviewUrl}
+        isSubmitting={isUploadingReceipt}
+        onConfirm={() => void handleConfirmUploadReceipt()}
+        onCancel={() => setPendingReceiptFile(null)}
+      />
+
+      <ConfirmPaymentApprovalModal
+        open={isConfirmPaymentModalOpen}
+        isSubmitting={isConfirmingPayment}
+        onConfirm={() => void handleConfirmPaymentApproval()}
+        onCancel={() => setIsConfirmPaymentModalOpen(false)}
+      />
     </div>
   );
 }

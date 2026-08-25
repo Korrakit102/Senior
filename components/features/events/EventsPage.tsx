@@ -1,15 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Archive,
-  CheckCircle2,
-  Clock3,
-  ThumbsUp,
-} from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import type { StockRow } from "../../AppShell";
 
-import EventStatCard from "./components/EventStatCard";
 import EventsHeader from "./components/EventsHeader";
 import EventsToolbar from "./components/EventsToolbar";
 import EventsViewToggle from "./components/EventsViewToggle";
@@ -229,23 +223,6 @@ export default function EventsPage({
       window.dispatchEvent(new CustomEvent("app:notification:new", { detail: notif }));
     }).catch(() => {});
   };
-
-  const stats = useMemo(() => {
-    const total = roleEvents.length;
-    const pending = roleEvents.filter((e) => e.status.text === "รออนุมัติ").length;
-    const progress = roleEvents.filter(
-      (e) => e.status.tone === "progress" || e.isIssued === true || issuedEventIds.has(e.id)
-    ).length;
-    const approved = roleEvents.filter(
-      (e) => e.status.tone === "success" && e.isIssued !== true && !issuedEventIds.has(e.id)
-    ).length;
-    return [
-      { label: "ทั้งหมด", value: total, tone: "neutral" as const, icon: <Archive className="h-5 w-5" /> },
-      { label: "รออนุมัติ", value: pending, tone: "amber" as const, icon: <Clock3 className="h-5 w-5" /> },
-      { label: "อนุมัติแล้ว", value: approved, tone: "emerald" as const, icon: <ThumbsUp className="h-5 w-5" /> },
-      { label: "กำลังดำเนินการ", value: progress, tone: "sky" as const, icon: <CheckCircle2 className="h-5 w-5" /> },
-    ];
-  }, [roleEvents, issuedEventIds]);
 
   const visibleEvents = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -592,12 +569,6 @@ export default function EventsPage({
       <ConfirmDeleteEventModal open={!!deleteEventId} eventTitle={deleteEvent?.title ?? ""} onConfirm={handleConfirmDeleteEvent} onCancel={() => setDeleteEventId(null)} />
 
       <EventsHeader role={role} onCreate={() => setIsCreateOpen(true)} />
-
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <EventStatCard key={s.label} icon={s.icon} value={s.value} label={s.label} tone={s.tone} />
-        ))}
-      </div>
 
       <EventsToolbar
         search={search}

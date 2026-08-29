@@ -14,7 +14,9 @@ import {
 } from "@/lib/db";
 import type { EventEquipmentRow } from "@/lib/db";
 
-const MAX_RECEIPT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_RECEIPT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_PDF_RECEIPT_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ALLOWED_RECEIPT_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const RECEIPT_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "receipts");
 
 // อัปโหลดสลิปการชำระเงิน: รับเป็น multipart/form-data แล้วเขียนไฟล์ลงดิสก์
@@ -36,11 +38,15 @@ async function handleUploadReceiptForm(req: NextRequest, id: string) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "receipt file is required" }, { status: 400 });
   }
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "receipt must be an image file" }, { status: 400 });
+  if (!ALLOWED_RECEIPT_MIME_TYPES.includes(file.type)) {
+    return NextResponse.json({ error: "receipt must be a JPG, PNG, or PDF file" }, { status: 400 });
   }
-  if (file.size > MAX_RECEIPT_FILE_SIZE) {
-    return NextResponse.json({ error: "receipt file is too large" }, { status: 400 });
+  if (file.type === "application/pdf") {
+    if (file.size > MAX_PDF_RECEIPT_FILE_SIZE) {
+      return NextResponse.json({ error: "receipt PDF file is too large (max 20MB)" }, { status: 400 });
+    }
+  } else if (file.size > MAX_IMAGE_RECEIPT_FILE_SIZE) {
+    return NextResponse.json({ error: "receipt image file is too large (max 5MB)" }, { status: 400 });
   }
 
   await mkdir(RECEIPT_UPLOAD_DIR, { recursive: true });

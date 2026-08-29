@@ -196,7 +196,7 @@ export default function EventListCard({
               <input
                 ref={receiptInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,application/pdf"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

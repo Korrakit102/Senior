@@ -26,6 +26,10 @@ import type {
   SelectedEquipment,
 } from "./types";
 
+const ALLOWED_RECEIPT_TYPES = ["image/jpeg", "image/png", "application/pdf"];
+const MAX_IMAGE_RECEIPT_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_PDF_RECEIPT_SIZE = 20 * 1024 * 1024; // 20MB
+
 function canShowEventForRole(
   event: EventItem,
   role: Role,
@@ -396,8 +400,17 @@ export default function EventsPage({
   const handleUploadReceipt = async (eventId: string, file: File) => {
     const targetEvent = events.find((event) => event.id === eventId);
 
-    if (file.size > 5 * 1024 * 1024) {
-      setToast("ไฟล์สลิปต้องไม่เกิน 5MB");
+    if (!ALLOWED_RECEIPT_TYPES.includes(file.type)) {
+      setToast("รองรับเฉพาะไฟล์ JPG, PNG, PDF เท่านั้น");
+      return;
+    }
+    if (file.type === "application/pdf") {
+      if (file.size > MAX_PDF_RECEIPT_SIZE) {
+        setToast("ไฟล์ PDF ต้องไม่เกิน 20 MB");
+        return;
+      }
+    } else if (file.size > MAX_IMAGE_RECEIPT_SIZE) {
+      setToast("ไฟล์รูปภาพต้องไม่เกิน 5 MB");
       return;
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Upload, X } from "lucide-react";
+import { FileText, Upload, X } from "lucide-react";
 
 type Props = {
   open: boolean;
@@ -32,6 +32,8 @@ export default function ConfirmUploadReceiptModal({
   }, [open, onCancel]);
 
   if (!open) return null;
+
+  const isPdf = fileName.toLowerCase().endsWith(".pdf");
 
   return (
     <div className="fixed inset-0 z-[170]">
@@ -66,12 +68,19 @@ export default function ConfirmUploadReceiptModal({
 
               {previewUrl && (
                 <div className="mt-3 overflow-hidden rounded-xl border border-emerald-200 bg-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewUrl}
-                    alt="ตัวอย่างสลิป"
-                    className="max-h-64 w-full object-contain"
-                  />
+                  {isPdf ? (
+                    <div className="flex items-center gap-2 p-4 text-sm text-zinc-700">
+                      <FileText className="h-5 w-5 text-emerald-600" />
+                      ไฟล์ PDF
+                    </div>
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewUrl}
+                      alt="ตัวอย่างสลิป"
+                      className="max-h-64 w-full object-contain"
+                    />
+                  )}
                 </div>
               )}
 

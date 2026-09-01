@@ -4,6 +4,7 @@ import { Eye, MoreVertical, PackagePlus, Pencil, Trash2 } from "lucide-react";
 import type { StockRow } from "../types";
 import { fmt, getCategoryTone, getStatusTone } from "../helpers";
 import StockPill from "./StockPill";
+import ReceiveStockModal from "../modals/ReceiveStockModal";
 
 type Props = {
   rows: StockRow[];
@@ -20,12 +21,14 @@ function RowActionsMenu({
   showDelete,
   onEdit,
   onDelete,
+  onReceiveStock,
 }: {
   row: StockRow;
   showEdit: boolean;
   showDelete: boolean;
   onEdit: (item: StockRow) => void;
   onDelete: (item: StockRow) => void;
+  onReceiveStock: (item: StockRow) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, right: 0 });
@@ -69,8 +72,8 @@ function RowActionsMenu({
   }, [open]);
 
   const handleReceiveStock = () => {
-    console.log("รับเข้าสต็อก:", row.name, row.code);
     setOpen(false);
+    onReceiveStock(row);
   };
 
   return (
@@ -139,8 +142,15 @@ export default function StockTable({
   onEdit,
   onDelete,
 }: Props) {
+  const [receiveItem, setReceiveItem] = useState<StockRow | null>(null);
+
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <ReceiveStockModal
+        open={!!receiveItem}
+        item={receiveItem}
+        onClose={() => setReceiveItem(null)}
+      />
       <div className="overflow-x-auto">
         <table className="min-w-[1100px] w-full">
           <thead className="bg-white">
@@ -222,6 +232,7 @@ export default function StockTable({
                         showDelete={showDelete}
                         onEdit={onEdit}
                         onDelete={onDelete}
+                        onReceiveStock={setReceiveItem}
                       />
                     </div>
                   </td>

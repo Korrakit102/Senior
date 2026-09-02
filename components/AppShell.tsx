@@ -47,6 +47,7 @@ export type StockRow = {
   available: number;
   pricePerDay: number;
   cost: number;
+  repairing: number;
 };
 
 function toCategory(v: string): Category {
@@ -73,6 +74,7 @@ const initialStock: StockRow[] = [
     available: 50,
     pricePerDay: 800,
     cost: 15000,
+    repairing: 0,
   },
   {
     id: "EQ002",
@@ -87,6 +89,7 @@ const initialStock: StockRow[] = [
     available: 28,
     pricePerDay: 1500,
     cost: 45000,
+    repairing: 0,
   },
   {
     id: "EQ003",
@@ -101,6 +104,7 @@ const initialStock: StockRow[] = [
     available: 35,
     pricePerDay: 600,
     cost: 12000,
+    repairing: 0,
   },
   {
     id: "EQ004",
@@ -115,6 +119,7 @@ const initialStock: StockRow[] = [
     available: 20,
     pricePerDay: 1200,
     cost: 25000,
+    repairing: 0,
   },
   {
     id: "EQ005",
@@ -129,6 +134,7 @@ const initialStock: StockRow[] = [
     available: 12,
     pricePerDay: 2500,
     cost: 55000,
+    repairing: 0,
   },
   {
     id: "EQ006",
@@ -143,6 +149,7 @@ const initialStock: StockRow[] = [
     available: 8,
     pricePerDay: 5000,
     cost: 120000,
+    repairing: 0,
   },
   {
     id: "EQ007",
@@ -157,6 +164,7 @@ const initialStock: StockRow[] = [
     available: 85,
     pricePerDay: 300,
     cost: 3500,
+    repairing: 0,
   },
   {
     id: "EQ008",
@@ -171,6 +179,7 @@ const initialStock: StockRow[] = [
     available: 180,
     pricePerDay: 80,
     cost: 1200,
+    repairing: 0,
   },
   {
     id: "EQ009",
@@ -185,6 +194,7 @@ const initialStock: StockRow[] = [
     available: 420,
     pricePerDay: 20,
     cost: 350,
+    repairing: 0,
   },
   {
     id: "EQ010",
@@ -199,6 +209,7 @@ const initialStock: StockRow[] = [
     available: 18,
     pricePerDay: 2000,
     cost: 85000,
+    repairing: 0,
   },
   {
     id: "EQ011",
@@ -213,6 +224,7 @@ const initialStock: StockRow[] = [
     available: 35,
     pricePerDay: 600,
     cost: 8500,
+    repairing: 0,
   },
   {
     id: "EQ012",
@@ -227,6 +239,7 @@ const initialStock: StockRow[] = [
     available: 22,
     pricePerDay: 1200,
     cost: 35000,
+    repairing: 0,
   },
 ];
 
@@ -376,6 +389,7 @@ export default function AppShell() {
         available: number;
         pricePerDay: number;
         cost: number;
+        repairing: number;
       }>;
 
       if (rows.length === 0) {
@@ -402,6 +416,7 @@ export default function AppShell() {
           available: r.available,
           pricePerDay: r.pricePerDay,
           cost: r.cost,
+          repairing: r.repairing,
         }))
       );
     } catch {
@@ -433,23 +448,29 @@ export default function AppShell() {
   // Calls the server to perform an atomic stock adjustment, then merges updated rows into local state
   const callAdjustStock = async (
     action: "deduct" | "return" | "damage",
-    items: { name: string; qty: number }[]
+    items: { name: string; qty: number }[],
+    eventId?: string
   ) => {
     try {
       const res = await fetch("/api/stock", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, items }),
+        body: JSON.stringify({ action, items, eventId }),
       });
       if (!res.ok) throw new Error("adjust failed");
       const { items: updated } = (await res.json()) as {
-        items: Array<{ id: string; available: number; status: string }>;
+        items: Array<{ id: string; available: number; status: string; repairing: number }>;
       };
       setStockData((prev) =>
         prev.map((row) => {
           const found = updated.find((u) => u.id === row.id);
           if (!found) return row;
-          return { ...row, available: found.available, status: toItemStatus(found.status) };
+          return {
+            ...row,
+            available: found.available,
+            status: toItemStatus(found.status),
+            repairing: found.repairing,
+          };
         })
       );
     } catch {
@@ -465,8 +486,11 @@ export default function AppShell() {
     callAdjustStock("return", equipmentList);
   };
 
-  const markDamagedStock = (equipmentList: { name: string; qty: number }[]) => {
-    callAdjustStock("damage", equipmentList);
+  const markDamagedStock = (
+    equipmentList: { name: string; qty: number }[],
+    eventId?: string
+  ) => {
+    callAdjustStock("damage", equipmentList, eventId);
   };
 
   const markEventAsIssued = (eventId: string) => {

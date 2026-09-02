@@ -19,6 +19,7 @@ export type StockRow = {
   available: number;
   pricePerDay: number;
   cost: number;
+  repairing: number;
 };
 
 export type StockTone = "blue" | "green" | "amber" | "zinc";

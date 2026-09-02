@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Eye, MoreVertical, Pencil, Trash2, Wrench } from "lucide-react";
 import type { StockRow } from "../types";
-import { fmt, getCategoryTone, getStatusTone } from "../helpers";
+import { fmt, getCategoryTone, getDisplayStatus, getStatusTone } from "../helpers";
 import StockPill from "./StockPill";
 
 type Props = {
@@ -148,7 +148,9 @@ export default function StockTable({
           <tbody className="text-sm text-zinc-800">
             {rows.map((r, idx) => {
               const catTone = getCategoryTone(r.category);
-              const statusTone = getStatusTone(r.status);
+              const displayStatus = getDisplayStatus(r);
+              const statusTone = getStatusTone(displayStatus);
+              const hasRepairWhileReady = r.available > 0 && r.repairing > 0;
 
               return (
                 <tr
@@ -180,13 +182,25 @@ export default function StockTable({
                   </td>
 
                   <td className="px-6 py-5">
-                    <StockPill tone={statusTone}>{r.status}</StockPill>
+                    <div className="relative inline-block">
+                      <StockPill tone={statusTone}>{displayStatus}</StockPill>
+                      {hasRepairWhileReady && (
+                        <span
+                          title={`${fmt(r.repairing)} ชิ้นกำลังซ่อม`}
+                          className="absolute -right-1.5 -top-1.5 inline-flex items-center gap-0.5 rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-none text-white shadow ring-1 ring-white"
+                        >
+                          <Wrench className="h-2 w-2" />
+                          {fmt(r.repairing)}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-6 py-5 text-center">
                     <div className="font-semibold">{fmt(r.qty)}</div>
                     <div className="text-xs text-zinc-500">
-                      ({fmt(r.available)} พร้อมใช้)
+                      ({fmt(r.available)} พร้อมใช้
+                      {r.repairing > 0 ? `, ${fmt(r.repairing)} ซ่อมแซม` : ""})
                     </div>
                   </td>
 

@@ -103,6 +103,7 @@ export default function AddStockModal({
       available: qty,
       pricePerDay: Number(form.pricePerDay),
       cost: Number(form.cost),
+      repairing: 0,
     });
 
     onClose();

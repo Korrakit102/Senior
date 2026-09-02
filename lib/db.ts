@@ -94,6 +94,7 @@ export type StockRowDb = {
   available: number;
   price_per_day: number;
   cost: number;
+  repairing: number;
 };
 
 // รูปแบบประวัติการเปลี่ยนจำนวน stock ที่อ่านจากตาราง stock_history
@@ -107,6 +108,7 @@ export type StockHistoryRow = {
   old_value: number;
   new_value: number;
   delta: number;
+  event_id: string | null;
   created_at: string;
 };
 
@@ -252,6 +254,10 @@ async function ensureStockTable(client?: PoolClient) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+    await c.query(`
+      ALTER TABLE stock_items
+      ADD COLUMN IF NOT EXISTS repairing INTEGER NOT NULL DEFAULT 0;
+    `);
   } finally {
     if (!client) c.release();
   }
@@ -274,6 +280,10 @@ async function ensureStockHistoryTable(client?: PoolClient) {
         delta INTEGER NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+    await c.query(`
+      ALTER TABLE stock_history
+      ADD COLUMN IF NOT EXISTS event_id TEXT;
     `);
   } finally {
     if (!client) c.release();
@@ -789,7 +799,7 @@ export async function listStockItems(): Promise<StockRowDb[]> {
   try {
     await ensureStockTable(client);
     const res: QueryResult<StockRowDb> = await client.query(
-      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost
+      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
        FROM stock_items ORDER BY id ASC`
     );
     return res.rows;
@@ -811,6 +821,7 @@ type StockItemInput = {
   available: number;
   pricePerDay: number;
   cost: number;
+  repairing: number;
 };
 
 const STOCK_NUMERIC_FIELDS: Array<{
@@ -822,6 +833,7 @@ const STOCK_NUMERIC_FIELDS: Array<{
   { label: "available",     getOld: r => r.available,     getNew: i => i.available },
   { label: "price_per_day", getOld: r => r.price_per_day, getNew: i => i.pricePerDay },
   { label: "cost",          getOld: r => r.cost,          getNew: i => i.cost },
+  { label: "repairing",     getOld: r => r.repairing,     getNew: i => i.repairing },
 ];
 
 async function insertStockHistory(
@@ -832,18 +844,20 @@ async function insertStockHistory(
   fieldLabel: string,
   oldValue: number,
   newValue: number,
-  createdAt: string
+  createdAt: string,
+  eventId?: string
 ) {
   const delta = newValue - oldValue;
   await client.query(
-    `INSERT INTO stock_history (id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    `INSERT INTO stock_history (id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, event_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       `STH-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
       stockId, stockCode, stockName,
       fieldLabel,
       delta > 0 ? "increase" : "decrease",
       oldValue, newValue, delta,
+      eventId ?? null,
       createdAt,
     ]
   );
@@ -858,22 +872,22 @@ export async function upsertStockItems(items: StockItemInput[]) {
 
     // Snapshot current rows for history comparison
     const prevRes = await client.query<StockRowDb>(
-      `SELECT id, code, name, qty, available, price_per_day, cost FROM stock_items`
+      `SELECT id, code, name, qty, available, price_per_day, cost, repairing FROM stock_items`
     );
     const prevById = new Map(prevRes.rows.map(r => [r.id, r]));
 
     // Upsert each item — ON CONFLICT preserves the original created_at
     for (const item of items) {
       await client.query(
-        `INSERT INTO stock_items (id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `INSERT INTO stock_items (id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (id) DO UPDATE SET
            code = EXCLUDED.code, name = EXCLUDED.name, brand = EXCLUDED.brand,
            category = EXCLUDED.category, system = EXCLUDED.system, zone = EXCLUDED.zone,
            status = EXCLUDED.status, qty = EXCLUDED.qty, available = EXCLUDED.available,
-           price_per_day = EXCLUDED.price_per_day, cost = EXCLUDED.cost`,
+           price_per_day = EXCLUDED.price_per_day, cost = EXCLUDED.cost, repairing = EXCLUDED.repairing`,
         [item.id, item.code, item.name, item.brand, item.category, item.system,
-         item.zone, item.status, item.qty, item.available, item.pricePerDay, item.cost]
+         item.zone, item.status, item.qty, item.available, item.pricePerDay, item.cost, item.repairing]
       );
     }
 
@@ -913,7 +927,8 @@ export async function upsertStockItems(items: StockItemInput[]) {
 // Atomic server-side stock adjustment — deduct / return / damage
 export async function adjustStock(
   items: Array<{ name: string; qty: number }>,
-  action: "deduct" | "return" | "damage"
+  action: "deduct" | "return" | "damage",
+  eventId?: string
 ): Promise<StockRowDb[]> {
   const client = await pool.connect();
   try {
@@ -934,7 +949,7 @@ export async function adjustStock(
                available = GREATEST(0, available - $2::int),
                status = CASE WHEN GREATEST(0, available - $2::int) = 0 THEN 'ใช้งานอยู่' ELSE status END
              WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost
+             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
            )
            SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
           [item.name, item.qty]
@@ -955,7 +970,7 @@ export async function adjustStock(
                available = LEAST(qty, available + $2::int),
                status = CASE WHEN available + $2::int > 0 THEN 'พร้อมใช้' ELSE status END
              WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost
+             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
            )
            SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
           [item.name, item.qty]
@@ -968,13 +983,28 @@ export async function adjustStock(
           }
         }
       } else {
-        // damage: status only, no available change
-        const res = await client.query<StockRowDb>(
-          `UPDATE stock_items SET status = 'ซ่อมแซม' WHERE name = $1
-           RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost`,
-          [item.name]
+        // damage: these units were already deducted from available when issued to the event —
+        // they move from "in use" into "repairing" without ever passing back through available
+        const res = await client.query<StockRowDb & { old_repairing: number }>(
+          `WITH old_row AS (SELECT repairing FROM stock_items WHERE name = $1),
+           upd AS (
+             UPDATE stock_items
+             SET
+               repairing = repairing + $2::int,
+               status = CASE WHEN available = 0 AND repairing + $2::int > 0 THEN 'ซ่อมแซม' ELSE status END
+             WHERE name = $1
+             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+           )
+           SELECT upd.*, old_row.repairing AS old_repairing FROM upd, old_row`,
+          [item.name, item.qty]
         );
-        results.push(...res.rows);
+        if (res.rows.length > 0) {
+          const row = res.rows[0];
+          results.push(row);
+          if (row.old_repairing !== row.repairing) {
+            await insertStockHistory(client, row.id, row.code, row.name, "repairing", row.old_repairing, row.repairing, createdAt, eventId);
+          }
+        }
       }
     }
 
@@ -1001,7 +1031,7 @@ export async function receiveStock(payload: {
     await client.query("BEGIN");
 
     const currentRes = await client.query<StockRowDb>(
-      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost
+      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
        FROM stock_items WHERE id = $1 FOR UPDATE`,
       [payload.equipmentId]
     );
@@ -1026,7 +1056,7 @@ export async function receiveStock(payload: {
       `UPDATE stock_items
        SET qty = $2, available = $3, cost = $4
        WHERE id = $1
-       RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost`,
+       RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
       [payload.equipmentId, newQty, newAvailable, roundedAvgCost]
     );
     const updated = updatedRes.rows[0];
@@ -1090,9 +1120,29 @@ export async function listStockHistory(limit = 100): Promise<StockHistoryRow[]> 
   try {
     await ensureStockHistoryTable(client);
     const res: QueryResult<StockHistoryRow> = await client.query(
-      `SELECT id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, created_at
+      `SELECT id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, event_id, created_at
        FROM stock_history ORDER BY created_at DESC LIMIT $1`,
       [limit]
+    );
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+// ดึงประวัติการแจ้งซ่อมของอุปกรณ์ตัวเดียว (การเพิ่มจำนวน repairing ทุกครั้ง) เรียงจากล่าสุดไปเก่าสุด — ใช้แสดงใน StockDetailModal
+export async function listRepairingHistoryByStockId(
+  stockId: string
+): Promise<StockHistoryRow[]> {
+  const client = await pool.connect();
+  try {
+    await ensureStockHistoryTable(client);
+    const res: QueryResult<StockHistoryRow> = await client.query(
+      `SELECT id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, event_id, created_at
+       FROM stock_history
+       WHERE stock_id = $1 AND field_name = 'repairing' AND change_type = 'increase'
+       ORDER BY created_at DESC`,
+      [stockId]
     );
     return res.rows;
   } finally {

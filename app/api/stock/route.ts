@@ -17,6 +17,7 @@ type StockApiRow = {
   available: number;
   pricePerDay: number;
   cost: number;
+  repairing: number;
 };
 
 function mapFromDb(row: StockRowDb): StockApiRow {
@@ -33,6 +34,7 @@ function mapFromDb(row: StockRowDb): StockApiRow {
     available: row.available,
     pricePerDay: row.price_per_day,
     cost: row.cost,
+    repairing: row.repairing,
   };
 }
 
@@ -56,7 +58,8 @@ export async function PUT(req: NextRequest) {
       typeof it?.qty === "number" &&
       typeof it?.available === "number" &&
       typeof it?.pricePerDay === "number" &&
-      typeof it?.cost === "number"
+      typeof it?.cost === "number" &&
+      typeof it?.repairing === "number"
   );
   if (!valid) {
     return NextResponse.json({ error: "invalid stock items" }, { status: 400 });
@@ -84,6 +87,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
-  const updated = await adjustStock(items, action as "deduct" | "return" | "damage");
+  const eventId = typeof body?.eventId === "string" ? body.eventId : undefined;
+
+  const updated = await adjustStock(items, action as "deduct" | "return" | "damage", eventId);
   return NextResponse.json({ items: updated.map(mapFromDb) });
 }

@@ -39,7 +39,10 @@ type Props = {
   stockData: StockRow[];
   onDeductStock: (equipmentList: { name: string; qty: number }[]) => void;
   onReturnStock: (equipmentList: { name: string; qty: number }[]) => void;
-  onMarkDamagedStock: (equipmentList: { name: string; qty: number }[]) => void;
+  onMarkDamagedStock: (
+    equipmentList: { name: string; qty: number }[],
+    eventId?: string
+  ) => void;
   onMarkEventAsIssued?: (eventId: string) => void;
   onUnmarkEventAsIssued?: (eventId: string) => void;
   onAddDamageRows?: (rows: DamageRow[]) => void;
@@ -268,8 +271,11 @@ export default function IssueReturnPage({
         if (undamagedPortions.length > 0) {
           onReturnStock(undamagedPortions);
         }
-        // จากนั้น mark damaged (override status → "ซ่อมแซม")
-        onMarkDamagedStock(damagedItems.map((i) => ({ name: i.name, qty: i.qty })));
+        // จากนั้น mark damaged เฉพาะจำนวนที่เสียหายจริง (ไม่ใช่ทั้งหมดที่คืน)
+        onMarkDamagedStock(
+          damagedItems.map((i) => ({ name: i.name, qty: i.damagedQty })),
+          confirmReturnEvent.id
+        );
       }
       if (normalItems.length > 0) {
         onReturnStock(normalItems.map((i) => ({ name: i.name, qty: i.qty })));
@@ -398,7 +404,7 @@ export default function IssueReturnPage({
           : "inuse";
 
       if (damaged) {
-        onMarkDamagedStock(items.map((i) => ({ name: i.name, qty: i.qty })));
+        onMarkDamagedStock(items.map((i) => ({ name: i.name, qty: i.qty })), eventId);
       } else {
         onReturnStock(items.map((i) => ({ name: i.name, qty: i.qty })));
       }

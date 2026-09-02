@@ -10,6 +10,16 @@ export function getStatusTone(status: ItemStatus): "green" | "blue" | "amber" {
   return "amber";
 }
 
+// สถานะหลักที่ควรแสดงบน badge โดยพิจารณาจากจำนวนพร้อมใช้/กำลังซ่อมจริง แทนการอ่าน field status ดิบตรงๆ:
+// - พร้อมใช้ > 0 → "พร้อมใช้" (ยังเบิกได้ แม้จะมีบางส่วนซ่อมอยู่ก็ตาม)
+// - พร้อมใช้ = 0 และมีของกำลังซ่อม → "ซ่อมแซม"
+// - พร้อมใช้ = 0 และไม่มีของซ่อม (ถูกเบิกไปใช้อีเวนต์ทั้งหมด) → "ใช้งานอยู่"
+export function getDisplayStatus(row: StockRow): ItemStatus {
+  if (row.available > 0) return "พร้อมใช้";
+  if (row.repairing > 0) return "ซ่อมแซม";
+  return "ใช้งานอยู่";
+}
+
 export function getCategoryTone(category: Category): "amber" | "zinc" {
   return category === "ไฟฟ้า" ? "amber" : "zinc";
 }

@@ -112,6 +112,19 @@ export type StockHistoryRow = {
   created_at: string;
 };
 
+// รูปแบบ breakdown ความเสียหายรายชิ้นที่อ่านจากตาราง damage_items
+export type DamageItemRow = {
+  id: string;
+  event_id: string;
+  item_name: string;
+  code: string;
+  event_date: string;
+  qty: number;
+  cost: number;
+  status: string;
+  created_at: string;
+};
+
 // รูปแบบประวัติการรับเข้าสต็อกที่อ่านจากตาราง stock_receipts
 export type StockReceiptRow = {
   id: string;
@@ -317,6 +330,28 @@ async function ensureStockReceiptsTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง damage_items สำหรับเก็บ breakdown ความเสียหายรายชิ้นแบบถาวร (แทนที่ state ชั่วคราวใน client)
+async function ensureDamageItemsTable(client?: PoolClient) {
+  const c = client ?? (await pool.connect());
+  try {
+    await c.query(`
+      CREATE TABLE IF NOT EXISTS damage_items (
+        id TEXT PRIMARY KEY,
+        event_id TEXT NOT NULL,
+        item_name TEXT NOT NULL,
+        code TEXT NOT NULL,
+        event_date TEXT NOT NULL,
+        qty INTEGER,
+        cost INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'reported',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  } finally {
+    if (!client) c.release();
+  }
+}
+
 // ตรวจและสร้างตาราง equipment_history สำหรับประวัติการเพิ่ม/ลบอุปกรณ์ใน Event
 async function ensureEquipmentHistoryTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
@@ -359,6 +394,7 @@ async function ensureTables(client?: PoolClient) {
   await ensureStockTable(client);
   await ensureStockHistoryTable(client);
   await ensureStockReceiptsTable(client);
+  await ensureDamageItemsTable(client);
   await ensureEquipmentHistoryTable(client);
   await ensureSettingsTable(client);
 }
@@ -1143,6 +1179,54 @@ export async function listRepairingHistoryByStockId(
        WHERE stock_id = $1 AND field_name = 'repairing' AND change_type = 'increase'
        ORDER BY created_at DESC`,
       [stockId]
+    );
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+// บันทึก breakdown ความเสียหายรายชิ้นของอีเวนต์หนึ่ง (เรียกตอน mark เสียหายในหน้าเบิก/คืน) แบบถาวรลง damage_items
+export async function insertDamageItems(payload: {
+  eventId: string;
+  eventCode: string;
+  eventDate: string;
+  items: Array<{ itemName: string; qty: number; cost: number }>;
+}): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await ensureDamageItemsTable(client);
+    const createdAt = new Date().toISOString();
+    for (const item of payload.items) {
+      await client.query(
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+          payload.eventId,
+          item.itemName,
+          payload.eventCode,
+          payload.eventDate,
+          item.qty,
+          item.cost,
+          "reported",
+          createdAt,
+        ]
+      );
+    }
+  } finally {
+    client.release();
+  }
+}
+
+// ดึง breakdown ความเสียหายรายชิ้นทั้งหมด เรียงจากล่าสุดไปเก่าสุด — ใช้แสดงในรายงานความเสียหาย
+export async function listDamageItems(): Promise<DamageItemRow[]> {
+  const client = await pool.connect();
+  try {
+    await ensureDamageItemsTable(client);
+    const res: QueryResult<DamageItemRow> = await client.query(
+      `SELECT id, event_id, item_name, code, event_date, qty, cost, status, created_at
+       FROM damage_items ORDER BY created_at DESC`
     );
     return res.rows;
   } finally {

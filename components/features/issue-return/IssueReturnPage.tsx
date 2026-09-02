@@ -302,6 +302,22 @@ export default function IssueReturnPage({
           };
         });
         onAddDamageRows(newRows);
+
+        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
+        fetch("/api/damage-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: confirmReturnEvent.id,
+            eventCode: confirmReturnEvent.code,
+            eventDate: confirmReturnEvent.eventDate,
+            items: newRows.map((r) => ({
+              itemName: r.itemName,
+              qty: r.qty,
+              cost: r.cost,
+            })),
+          }),
+        }).catch(() => undefined);
       }
 
       setEvents((prev) =>
@@ -424,6 +440,22 @@ export default function IssueReturnPage({
           };
         });
         onAddDamageRows(newRows);
+
+        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
+        fetch("/api/damage-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId,
+            eventCode: selectedEvent?.code ?? eventId,
+            eventDate: selectedEvent?.eventDate ?? "",
+            items: newRows.map((r) => ({
+              itemName: r.itemName,
+              qty: r.qty,
+              cost: r.cost,
+            })),
+          }),
+        }).catch(() => undefined);
       }
 
       setEquipmentByEvent((prev) => ({ ...prev, [eventId]: nextEquipment }));

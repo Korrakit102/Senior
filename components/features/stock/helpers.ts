@@ -55,9 +55,13 @@ export function filterStockRows(
         x.toLowerCase().includes(q.toLowerCase())
       );
 
+    const hitStatus =
+      status === "ทั้งหมด" ||
+      (status === "ซ่อมแซม" ? r.repairing > 0 : getDisplayStatus(r) === status);
+
     return (
       hitQ &&
-      (status === "ทั้งหมด" || r.status === status) &&
+      hitStatus &&
       (category === "ทั้งหมด" || r.category === category)
     );
   });
@@ -68,7 +72,7 @@ export function getStockStats(stockData: StockRow[]) {
     total: stockData.reduce((s, r) => s + r.qty, 0),
     ready: stockData.reduce((s, r) => s + r.available, 0),
     inUse: stockData.reduce((s, r) => s + (r.qty - r.available), 0),
-    repair: stockData.filter((r) => r.status === "ซ่อมแซม").length,
+    repair: stockData.reduce((s, r) => s + r.repairing, 0),
   };
 }
 

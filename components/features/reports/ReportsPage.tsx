@@ -132,6 +132,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [docCategory, setDocCategory] = useState<"all" | DocCategory>("all");
   const [docSort, setDocSort] = useState<"newest" | "oldest">("newest");
   const [eventReportRows, setEventReportRows] = useState<EventReportRow[]>([]);
+  const [persistedDamageRows, setPersistedDamageRows] = useState<DamageRow[]>([]);
   const [invoiceEvent, setInvoiceEvent] = useState<EventReportRow | null>(null);
   const [quotationEvent, setQuotationEvent] = useState<EventReportRow | null>(null);
   const [workOrderEvent, setWorkOrderEvent] = useState<EventReportRow | null>(null);
@@ -329,6 +330,20 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     loadEvents();
   }, []);
 
+  useEffect(() => {
+    const loadDamageItems = async () => {
+      try {
+        const res = await fetch("/api/damage-items");
+        if (!res.ok) throw new Error("failed to fetch damage items");
+        const rows = (await res.json()) as DamageRow[];
+        setPersistedDamageRows(rows);
+      } catch {
+        setPersistedDamageRows([]);
+      }
+    };
+    loadDamageItems();
+  }, []);
+
   const eventDocumentRows = useMemo<DocRow[]>(
     () =>
       eventReportRows
@@ -365,12 +380,19 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   );
 
   const damageRows = useMemo<DamageRow[]>(() => {
-    // Per-item rows from return flow take priority; exclude event-level rows for those events
+    // ลำดับความสำคัญ: rows ในเซสชันปัจจุบัน (instant feedback) > rows ที่บันทึกถาวรใน DB แล้ว > fallback ระดับอีเวนต์ (ไม่มี breakdown จริง)
     const extraEventIds = new Set(
       (extraDamageRows ?? []).map((r) => r.eventId).filter(Boolean)
     );
+    const persistedForOtherEvents = persistedDamageRows.filter(
+      (r) => !extraEventIds.has(r.eventId)
+    );
+    const coveredEventIds = new Set([
+      ...extraEventIds,
+      ...persistedForOtherEvents.map((r) => r.eventId).filter(Boolean),
+    ]);
     const apiRows: DamageRow[] = eventReportRows
-      .filter((e) => e.isDamaged && !extraEventIds.has(e.id))
+      .filter((e) => e.isDamaged && !coveredEventIds.has(e.id))
       .map((e) => ({
         id: e.id,
         itemName: `ความเสียหาย — ${e.title}`,
@@ -381,10 +403,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         status: "reported" as const,
       }));
     // ซ่อนแถว fallback ที่ไม่มี breakdown รายชิ้นจริง (qty ไม่มีค่า และมูลค่า = 0) ออกจากรายงาน
-    return [...(extraDamageRows ?? []), ...apiRows].filter(
+    return [...(extraDamageRows ?? []), ...persistedForOtherEvents, ...apiRows].filter(
       (r) => r.qty != null && r.cost > 0
     );
-  }, [eventReportRows, extraDamageRows]);
+  }, [eventReportRows, extraDamageRows, persistedDamageRows]);
 
   const filteredStock = useMemo(
     () => filterStockRows(stockRows, query),

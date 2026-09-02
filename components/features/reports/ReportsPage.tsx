@@ -369,7 +369,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     const extraEventIds = new Set(
       (extraDamageRows ?? []).map((r) => r.eventId).filter(Boolean)
     );
-    const apiRows = eventReportRows
+    const apiRows: DamageRow[] = eventReportRows
       .filter((e) => e.isDamaged && !extraEventIds.has(e.id))
       .map((e) => ({
         id: e.id,
@@ -380,7 +380,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         cost: 0,
         status: "reported" as const,
       }));
-    return [...(extraDamageRows ?? []), ...apiRows];
+    // ซ่อนแถว fallback ที่ไม่มี breakdown รายชิ้นจริง (qty ไม่มีค่า และมูลค่า = 0) ออกจากรายงาน
+    return [...(extraDamageRows ?? []), ...apiRows].filter(
+      (r) => r.qty != null && r.cost > 0
+    );
   }, [eventReportRows, extraDamageRows]);
 
   const filteredStock = useMemo(

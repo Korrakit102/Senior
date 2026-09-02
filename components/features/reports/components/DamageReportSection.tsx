@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, FilePlus } from "lucide-react";
 import type { DamageRow } from "../types";
 import ReportsCard from "./ReportsCard";
 import ReportsExportButton from "./ReportsExportButton";
@@ -8,9 +8,10 @@ import { fmtDateRangeThai } from "../../events/helpers";
 type Props = {
   rows: DamageRow[];
   onExport: () => void;
+  onOpenInvoice: (row: DamageRow) => void;
 };
 
-export default function DamageReportSection({ rows, onExport }: Props) {
+export default function DamageReportSection({ rows, onExport, onOpenInvoice }: Props) {
   return (
     <ReportsCard
       title="รายงานความเสียหาย"
@@ -41,33 +42,59 @@ export default function DamageReportSection({ rows, onExport }: Props) {
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
                 <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
+                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
-              {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-zinc-50/60">
-                  <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
-                  <td className="py-3 text-zinc-500">{row.code}</td>
-                  <td className="py-3 text-zinc-500">{fmtDateRangeThai(row.date)}</td>
-                  <td className="py-3 text-right font-medium text-zinc-900">
-                    {row.qty != null ? `${row.qty} ชิ้น` : "-"}
-                  </td>
-                  <td className="py-3 text-right font-medium text-zinc-900">
-                    {row.cost.toLocaleString("th-TH")}
-                  </td>
-                  <td className="py-3 pl-4">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        row.status === "reported"
-                          ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                          : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
-                      }`}
-                    >
-                      {row.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((row) => {
+                const hasBreakdown = row.qty != null && row.cost > 0;
+                return (
+                  <tr key={row.id} className="hover:bg-zinc-50/60">
+                    <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
+                    <td className="py-3 text-zinc-500">{row.code}</td>
+                    <td className="py-3 text-zinc-500">{fmtDateRangeThai(row.date)}</td>
+                    <td className="py-3 text-right font-medium text-zinc-900">
+                      {row.qty != null ? `${row.qty} ชิ้น` : "-"}
+                    </td>
+                    <td className="py-3 text-right font-medium text-zinc-900">
+                      {row.cost.toLocaleString("th-TH")}
+                    </td>
+                    <td className="py-3 pl-4">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          row.status === "reported"
+                            ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
+                            : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                        }`}
+                      >
+                        {row.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว"}
+                      </span>
+                    </td>
+                    <td className="py-3 pl-4">
+                      <div className="relative group inline-flex">
+                        <button
+                          onClick={hasBreakdown ? () => onOpenInvoice(row) : undefined}
+                          disabled={!hasBreakdown}
+                          className={
+                            hasBreakdown
+                              ? "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+                              : "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed select-none"
+                          }
+                        >
+                          <FilePlus className={`h-4 w-4 ${hasBreakdown ? "text-zinc-500" : "text-zinc-300"}`} />
+                          ออกใบแจ้งหนี้
+                        </button>
+                        {!hasBreakdown && (
+                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
+                            ไม่มีข้อมูลมูลค่าความเสียหาย
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -44,6 +44,7 @@ import ConfirmDeleteDocModal from "./modals/ConfirmDeleteDocModal";
 import AddDocModal from "./modals/AddDocModal";
 import QuotationInvoiceModal from "./modals/QuotationInvoiceModal";
 import WorkOrderModal from "./modals/WorkOrderModal";
+import DamageInvoiceModal from "./modals/DamageInvoiceModal";
 
 function daysBetween(range: string): number {
   const parts = range.split(" - ");
@@ -134,6 +135,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [invoiceEvent, setInvoiceEvent] = useState<EventReportRow | null>(null);
   const [quotationEvent, setQuotationEvent] = useState<EventReportRow | null>(null);
   const [workOrderEvent, setWorkOrderEvent] = useState<EventReportRow | null>(null);
+  const [damageInvoiceRow, setDamageInvoiceRow] = useState<DamageRow | null>(null);
   const [hiddenEventDocIds, setHiddenEventDocIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -501,6 +503,14 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     setWorkOrderEvent(eventReportRows.find((r) => r.id === id) ?? null);
   };
 
+  const onOpenDamageInvoice = (row: DamageRow) => {
+    setDamageInvoiceRow(row);
+  };
+
+  const damageInvoiceEvent = damageInvoiceRow
+    ? eventReportRows.find((r) => r.id === damageInvoiceRow.eventId) ?? null
+    : null;
+
   return (
     <div className="px-6 py-8">
       <ReportsHeader />
@@ -587,6 +597,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           <DamageReportSection
             rows={filteredDamage}
             onExport={handleExportDamage}
+            onOpenInvoice={onOpenDamageInvoice}
           />
         )}
         {tab === "docs" && (
@@ -629,6 +640,13 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         open={workOrderEvent !== null}
         event={workOrderEvent}
         onClose={() => setWorkOrderEvent(null)}
+      />
+
+      <DamageInvoiceModal
+        open={damageInvoiceRow !== null}
+        damageRow={damageInvoiceRow}
+        event={damageInvoiceEvent}
+        onClose={() => setDamageInvoiceRow(null)}
       />
 
       <ReportDocDetailModal

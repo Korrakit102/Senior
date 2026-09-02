@@ -150,7 +150,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                   จำนวนรวม
                 </div>
                 <div className="text-lg font-semibold text-zinc-900">
-                  {fmt(item.qty)} ยูนิต
+                  {fmt(item.qty)} ชิ้น
                 </div>
               </div>
 
@@ -159,7 +159,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                   จำนวนพร้อมใช้
                 </div>
                 <div className="text-lg font-semibold text-emerald-600">
-                  {fmt(item.available)} ยูนิต
+                  {fmt(item.available)} ชิ้น
                 </div>
               </div>
 
@@ -236,7 +236,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-zinc-900">
-                          +{fmt(r.quantity)} ยูนิต
+                          +{fmt(r.quantity)} ชิ้น
                         </span>
                         <span className="text-xs text-zinc-500">
                           {new Date(r.createdAt).toLocaleString("th-TH", {

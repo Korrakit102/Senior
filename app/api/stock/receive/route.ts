@@ -1,7 +1,35 @@
 "use server";
 
 import { NextRequest, NextResponse } from "next/server";
-import { receiveStock } from "@/lib/db";
+import { listStockReceiptsByStockId, receiveStock } from "@/lib/db";
+
+// ดึงประวัติการรับเข้าสต็อกของอุปกรณ์ตัวเดียว ใช้แสดงใน StockDetailModal
+export async function GET(req: NextRequest) {
+  const equipmentId = req.nextUrl.searchParams.get("equipmentId");
+  if (!equipmentId) {
+    return NextResponse.json({ error: "equipmentId is required" }, { status: 400 });
+  }
+
+  const rows = await listStockReceiptsByStockId(equipmentId);
+  return NextResponse.json(
+    rows.map((r) => ({
+      id: r.id,
+      stockId: r.stock_id,
+      stockCode: r.stock_code,
+      stockName: r.stock_name,
+      quantity: r.quantity,
+      unitCost: Number(r.unit_cost),
+      supplier: r.supplier,
+      poNumber: r.po_number,
+      prevQty: r.prev_qty,
+      prevAvgCost: Number(r.prev_avg_cost),
+      newQty: r.new_qty,
+      newAvgCost: Number(r.new_avg_cost),
+      receivedByRole: r.received_by_role,
+      createdAt: r.created_at,
+    }))
+  );
+}
 
 // รับเข้าสต็อก: คำนวณต้นทุนเฉลี่ยใหม่และบันทึกประวัติการรับเข้า (stock_receipts) แบบ atomic
 export async function POST(req: NextRequest) {

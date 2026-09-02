@@ -11,7 +11,21 @@ type Props = {
   onClose: () => void;
 };
 
+type StockReceiptEntry = {
+  id: string;
+  quantity: number;
+  unitCost: number;
+  supplier: string;
+  poNumber: string | null;
+  newAvgCost: number;
+  createdAt: string;
+};
+
 export default function StockDetailModal({ item, onClose }: Props) {
+  const [receipts, setReceipts] = React.useState<StockReceiptEntry[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = React.useState(false);
+  const [receiptsError, setReceiptsError] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     if (!item) return;
 
@@ -22,6 +36,37 @@ export default function StockDetailModal({ item, onClose }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [item, onClose]);
+
+  React.useEffect(() => {
+    if (!item) {
+      setReceipts([]);
+      setReceiptsError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setReceiptsLoading(true);
+    setReceiptsError(null);
+
+    fetch(`/api/stock/receive?equipmentId=${encodeURIComponent(item.id)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("failed to load receipts");
+        return res.json();
+      })
+      .then((rows: StockReceiptEntry[]) => {
+        if (!cancelled) setReceipts(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setReceiptsError("โหลดประวัติการรับเข้าไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!cancelled) setReceiptsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id]);
 
   if (!item) return null;
 
@@ -161,6 +206,79 @@ export default function StockDetailModal({ item, onClose }: Props) {
                   <div className="text-xs text-zinc-500">รวมทั้งหมด</div>
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <div className="mb-3 text-xs font-semibold text-zinc-700">
+                ประวัติการรับเข้า
+              </div>
+
+              {receiptsLoading && (
+                <div className="text-sm text-zinc-500">กำลังโหลด...</div>
+              )}
+
+              {!receiptsLoading && receiptsError && (
+                <div className="text-sm text-red-600">{receiptsError}</div>
+              )}
+
+              {!receiptsLoading && !receiptsError && receipts.length === 0 && (
+                <div className="text-sm text-zinc-500">
+                  ยังไม่มีประวัติการรับเข้า
+                </div>
+              )}
+
+              {!receiptsLoading && !receiptsError && receipts.length > 0 && (
+                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                  {receipts.map((r) => (
+                    <div
+                      key={r.id}
+                      className="rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-zinc-900">
+                          +{fmt(r.quantity)} ยูนิต
+                        </span>
+                        <span className="text-xs text-zinc-500">
+                          {new Date(r.createdAt).toLocaleString("th-TH", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                      </div>
+
+                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-zinc-600">
+                        <div>
+                          ราคาซื้อต่อหน่วย:{" "}
+                          <span className="font-medium text-zinc-800">
+                            {fmt(r.unitCost)} ฿
+                          </span>
+                        </div>
+                        <div>
+                          ต้นทุนเฉลี่ยหลังรับเข้า:{" "}
+                          <span className="font-medium text-zinc-800">
+                            {r.newAvgCost.toLocaleString("th-TH", {
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            ฿
+                          </span>
+                        </div>
+                        <div>
+                          ผู้จัดจำหน่าย:{" "}
+                          <span className="font-medium text-zinc-800">
+                            {r.supplier}
+                          </span>
+                        </div>
+                        <div>
+                          เลขที่ PO:{" "}
+                          <span className="font-medium text-zinc-800">
+                            {r.poNumber || "-"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">

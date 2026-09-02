@@ -1064,6 +1064,27 @@ export async function receiveStock(payload: {
   }
 }
 
+// ดึงประวัติการรับเข้าสต็อกของอุปกรณ์ตัวเดียว เรียงจากล่าสุดไปเก่าสุด (ใช้แสดงใน StockDetailModal)
+export async function listStockReceiptsByStockId(
+  stockId: string
+): Promise<StockReceiptRow[]> {
+  const client = await pool.connect();
+  try {
+    await ensureStockReceiptsTable(client);
+    const res: QueryResult<StockReceiptRow> = await client.query(
+      `SELECT id, stock_id, stock_code, stock_name, quantity, unit_cost, supplier, po_number,
+         prev_qty, prev_avg_cost, new_qty, new_avg_cost, received_by_role, created_at
+       FROM stock_receipts
+       WHERE stock_id = $1
+       ORDER BY created_at DESC`,
+      [stockId]
+    );
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
 export async function listStockHistory(limit = 100): Promise<StockHistoryRow[]> {
   const client = await pool.connect();
   try {

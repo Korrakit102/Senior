@@ -18,6 +18,7 @@ import AddStockModal from "./modals/AddStockModal";
 import EditStockModal from "./modals/EditStockModal";
 import StockDetailModal from "./modals/StockDetailModal";
 import ConfirmDeleteModal from "./modals/ConfirmDeleteModal";
+import ReceiveStockModal from "./modals/ReceiveStockModal";
 
 type Props = {
   role: Role;
@@ -38,6 +39,7 @@ export default function StockPage({
   const [editItem, setEditItem] = useState<StockRow | null>(null);
   const [detailItem, setDetailItem] = useState<StockRow | null>(null);
   const [deleteItem, setDeleteItem] = useState<StockRow | null>(null);
+  const [receiveStockOpen, setReceiveStockOpen] = useState(false);
 
   // filter
   const rows = useMemo(
@@ -104,10 +106,17 @@ export default function StockPage({
         }
       />
 
+      <ReceiveStockModal
+        open={receiveStockOpen}
+        items={stockData}
+        onClose={() => setReceiveStockOpen(false)}
+      />
+
       {/* header */}
       <StockHeader
         onAdd={() => setAddOpen(true)}
         onExport={() => exportStockToExcel(rows)}
+        onReceiveStock={() => setReceiveStockOpen(true)}
       />
 
       {/* stats */}

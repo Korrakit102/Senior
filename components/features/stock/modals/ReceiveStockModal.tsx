@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertTriangle, Minus, Plus, X } from "lucide-react";
+import { AlertTriangle, Minus, Plus, Search, X } from "lucide-react";
 import type { StockRow } from "../types";
 import { fmt } from "../helpers";
 import StockField from "../components/StockField";
@@ -9,7 +9,7 @@ import StockPill from "../components/StockPill";
 
 type Props = {
   open: boolean;
-  item: StockRow | null;
+  items: StockRow[];
   onClose: () => void;
 };
 
@@ -72,7 +72,11 @@ function findSimilarSupplier(name: string, list: string[]): string | null {
   return null;
 }
 
-export default function ReceiveStockModal({ open, item, onClose }: Props) {
+export default function ReceiveStockModal({ open, items, onClose }: Props) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<StockRow | null>(null);
+
   const [receiveQty, setReceiveQty] = useState(1);
   const [purchasePrice, setPurchasePrice] = useState("");
   const [supplier, setSupplier] = useState(SUPPLIERS[0]);
@@ -89,8 +93,7 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
 
   const allSuppliers = [...SUPPLIERS, ...customSuppliers];
 
-  React.useEffect(() => {
-    if (!open) return;
+  const resetFields = () => {
     setReceiveQty(1);
     setPurchasePrice("");
     setSupplier(SUPPLIERS[0]);
@@ -100,7 +103,15 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
     setNewSupplierName("");
     setNewSupplierError(undefined);
     setDuplicateSupplierWarning(null);
-  }, [open, item]);
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    setSearchQuery("");
+    setSearchDropdownOpen(false);
+    setSelectedItem(null);
+    resetFields();
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -111,10 +122,31 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  if (!open || !item) return null;
+  if (!open) return null;
 
-  const currentQty = item.qty;
-  const currentAvgCost = item.cost;
+  const filteredItems =
+    searchQuery.trim().length > 0
+      ? items
+          .filter((i) => {
+            const query = searchQuery.trim().toLowerCase();
+            return (
+              i.name.toLowerCase().includes(query) ||
+              i.id.toLowerCase().includes(query) ||
+              i.code.toLowerCase().includes(query)
+            );
+          })
+          .slice(0, 8)
+      : [];
+
+  const handleSelectItem = (row: StockRow) => {
+    setSelectedItem(row);
+    setSearchQuery(`${row.name} (${row.code})`);
+    setSearchDropdownOpen(false);
+    resetFields();
+  };
+
+  const currentQty = selectedItem?.qty ?? 0;
+  const currentAvgCost = selectedItem?.cost ?? 0;
   const newQty = receiveQty;
   const newPrice = Number(purchasePrice) || 0;
 
@@ -131,6 +163,10 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
   const validate = () => {
     const e: Record<string, string> = {};
 
+    if (!selectedItem) {
+      e.equipment = "กรุณาเลือกอุปกรณ์ที่ต้องการรับเข้าสต็อก";
+    }
+
     if (!receiveQty || receiveQty <= 0) {
       e.receiveQty = "จำนวนที่รับเข้าต้องมากกว่า 0";
     }
@@ -146,12 +182,12 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
   };
 
   const submit = () => {
-    if (!validate()) return;
+    if (!validate() || !selectedItem) return;
 
     console.log("รับเข้าสต็อก:", {
-      equipmentId: item.id,
-      equipmentName: item.name,
-      sku: item.code,
+      equipmentId: selectedItem.id,
+      equipmentName: selectedItem.name,
+      sku: selectedItem.code,
       currentQty,
       currentAvgCost,
       receiveQty,
@@ -246,41 +282,103 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
           </div>
 
           <div className="px-5 pb-5 space-y-4">
-            {/* equipment info (read-only) */}
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <div className="font-semibold text-zinc-900">{item.name}</div>
-              <div className="mt-2 flex items-center gap-2">
-                <StockPill tone="blue">{item.id}</StockPill>
-                <StockPill tone="blue">{item.code}</StockPill>
+            {/* equipment search */}
+            <StockField
+              label="ค้นหาอุปกรณ์ (ชื่อหรือ SKU)"
+              required
+              error={errors.equipment}
+            >
+              <div className="relative">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSelectedItem(null);
+                      setSearchDropdownOpen(true);
+                    }}
+                    onFocus={() => {
+                      if (searchQuery.trim()) setSearchDropdownOpen(true);
+                    }}
+                    onBlur={() =>
+                      setTimeout(() => setSearchDropdownOpen(false), 150)
+                    }
+                    placeholder="พิมพ์ชื่ออุปกรณ์หรือรหัส SKU"
+                    className={`${inp(errors.equipment)} pl-9`}
+                  />
+                </div>
+
+                {searchDropdownOpen && (
+                  <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white py-1 shadow-lg">
+                    {filteredItems.length > 0 ? (
+                      filteredItems.map((row) => (
+                        <button
+                          key={row.id}
+                          type="button"
+                          onClick={() => handleSelectItem(row)}
+                          className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                        >
+                          <span className="font-medium text-zinc-900">
+                            {row.name}
+                          </span>
+                          <span className="text-xs text-zinc-500">
+                            {row.id} · {row.code}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-zinc-500">
+                        ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            </StockField>
+
+            {/* equipment info (read-only) */}
+            {selectedItem && (
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                <div className="font-semibold text-zinc-900">
+                  {selectedItem.name}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <StockPill tone="blue">{selectedItem.id}</StockPill>
+                  <StockPill tone="blue">{selectedItem.code}</StockPill>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <StockField label="จำนวนที่รับเข้า" required error={errors.receiveQty}>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    disabled={!selectedItem}
                     onClick={() =>
                       setReceiveQty((q) => Math.max(0, q - 1))
                     }
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
 
                   <input
                     type="number"
+                    disabled={!selectedItem}
                     value={receiveQty}
                     onChange={(e) =>
                       setReceiveQty(Math.max(0, Number(e.target.value) || 0))
                     }
-                    className={`${inp(errors.receiveQty)} text-center`}
+                    className={`${inp(errors.receiveQty)} text-center disabled:cursor-not-allowed disabled:opacity-50`}
                   />
 
                   <button
                     type="button"
+                    disabled={!selectedItem}
                     onClick={() => setReceiveQty((q) => q + 1)}
-                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -294,10 +392,11 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
               >
                 <input
                   type="number"
+                  disabled={!selectedItem}
                   value={purchasePrice}
                   onChange={(e) => setPurchasePrice(e.target.value)}
                   placeholder="ระบุราคาซื้อต่อหน่วย"
-                  className={inp(errors.purchasePrice)}
+                  className={`${inp(errors.purchasePrice)} disabled:cursor-not-allowed disabled:opacity-50`}
                 />
               </StockField>
 
@@ -305,6 +404,7 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
                 {!isAddingSupplier ? (
                   <select
                     value={supplier}
+                    disabled={!selectedItem}
                     onChange={(e) => {
                       if (e.target.value === ADD_NEW_SUPPLIER_VALUE) {
                         setIsAddingSupplier(true);
@@ -315,7 +415,7 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
                         setSupplier(e.target.value);
                       }
                     }}
-                    className="h-10 w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 pr-10 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
+                    className="h-10 w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 pr-10 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {allSuppliers.map((s) => (
                       <option key={s} value={s}>
@@ -400,10 +500,11 @@ export default function ReceiveStockModal({ open, item, onClose }: Props) {
 
               <StockField label="เลขที่ใบสั่งซื้อ/PO">
                 <input
+                  disabled={!selectedItem}
                   value={poNumber}
                   onChange={(e) => setPoNumber(e.target.value)}
                   placeholder="ระบุเลขที่ PO (ถ้ามี)"
-                  className={inp()}
+                  className={`${inp()} disabled:cursor-not-allowed disabled:opacity-50`}
                 />
               </StockField>
             </div>

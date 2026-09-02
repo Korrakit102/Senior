@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, MoreVertical, PackagePlus, Pencil, Trash2 } from "lucide-react";
+import { Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import type { StockRow } from "../types";
 import { fmt, getCategoryTone, getStatusTone } from "../helpers";
 import StockPill from "./StockPill";
-import ReceiveStockModal from "../modals/ReceiveStockModal";
 
 type Props = {
   rows: StockRow[];
@@ -21,14 +20,12 @@ function RowActionsMenu({
   showDelete,
   onEdit,
   onDelete,
-  onReceiveStock,
 }: {
   row: StockRow;
   showEdit: boolean;
   showDelete: boolean;
   onEdit: (item: StockRow) => void;
   onDelete: (item: StockRow) => void;
-  onReceiveStock: (item: StockRow) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, right: 0 });
@@ -71,11 +68,6 @@ function RowActionsMenu({
     };
   }, [open]);
 
-  const handleReceiveStock = () => {
-    setOpen(false);
-    onReceiveStock(row);
-  };
-
   return (
     <>
       <button
@@ -94,14 +86,6 @@ function RowActionsMenu({
             style={{ top: position.top, right: position.right }}
             className="fixed z-50 w-44 overflow-hidden rounded-2xl border border-zinc-200 bg-white py-1 text-left shadow-lg"
           >
-            <button
-              onClick={handleReceiveStock}
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
-            >
-              <PackagePlus className="h-4 w-4" />
-              รับเข้าสต็อก
-            </button>
-
             {showEdit && (
               <button
                 onClick={() => {
@@ -142,15 +126,8 @@ export default function StockTable({
   onEdit,
   onDelete,
 }: Props) {
-  const [receiveItem, setReceiveItem] = useState<StockRow | null>(null);
-
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <ReceiveStockModal
-        open={!!receiveItem}
-        item={receiveItem}
-        onClose={() => setReceiveItem(null)}
-      />
       <div className="overflow-x-auto">
         <table className="min-w-[1100px] w-full">
           <thead className="bg-white">
@@ -232,7 +209,6 @@ export default function StockTable({
                         showDelete={showDelete}
                         onEdit={onEdit}
                         onDelete={onDelete}
-                        onReceiveStock={setReceiveItem}
                       />
                     </div>
                   </td>

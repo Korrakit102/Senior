@@ -24,12 +24,14 @@ type Props = {
   role: Role;
   stockData: StockRow[];
   onStockChange: (updater: any) => void;
+  onStockReload: () => Promise<void>;
 };
 
 export default function StockPage({
   role,
   stockData,
   onStockChange,
+  onStockReload,
 }: Props) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"ทั้งหมด" | ItemStatus>("ทั้งหมด");
@@ -109,7 +111,9 @@ export default function StockPage({
       <ReceiveStockModal
         open={receiveStockOpen}
         items={stockData}
+        role={role}
         onClose={() => setReceiveStockOpen(false)}
+        onReceived={onStockReload}
       />
 
       {/* header */}

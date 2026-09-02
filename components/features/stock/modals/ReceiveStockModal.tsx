@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertTriangle, Minus, Plus, Search, X } from "lucide-react";
-import type { StockRow } from "../types";
+import { AlertTriangle, CheckCircle2, Loader2, Minus, Plus, Search, X } from "lucide-react";
+import type { Role, StockRow } from "../types";
 import { fmt } from "../helpers";
 import StockField from "../components/StockField";
 import StockPill from "../components/StockPill";
@@ -10,7 +10,9 @@ import StockPill from "../components/StockPill";
 type Props = {
   open: boolean;
   items: StockRow[];
+  role: Role;
   onClose: () => void;
+  onReceived: () => Promise<void>;
 };
 
 const SUPPLIERS = [
@@ -72,7 +74,13 @@ function findSimilarSupplier(name: string, list: string[]): string | null {
   return null;
 }
 
-export default function ReceiveStockModal({ open, items, onClose }: Props) {
+export default function ReceiveStockModal({
+  open,
+  items,
+  role,
+  onClose,
+  onReceived,
+}: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<StockRow | null>(null);
@@ -82,6 +90,10 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
   const [supplier, setSupplier] = useState(SUPPLIERS[0]);
   const [poNumber, setPoNumber] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const [customSuppliers, setCustomSuppliers] = useState<string[]>([]);
   const [isAddingSupplier, setIsAddingSupplier] = useState(false);
@@ -111,16 +123,19 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
     setSearchDropdownOpen(false);
     setSelectedItem(null);
     resetFields();
+    setSubmitting(false);
+    setSubmitError(null);
+    setSubmitSuccess(false);
   }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !submitting && !submitSuccess) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, submitting, submitSuccess]);
 
   if (!open) return null;
 
@@ -181,24 +196,41 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
     return Object.keys(e).length === 0;
   };
 
-  const submit = () => {
+  const submit = async () => {
+    setSubmitError(null);
     if (!validate() || !selectedItem) return;
 
-    console.log("รับเข้าสต็อก:", {
-      equipmentId: selectedItem.id,
-      equipmentName: selectedItem.name,
-      sku: selectedItem.code,
-      currentQty,
-      currentAvgCost,
-      receiveQty,
-      purchasePrice: newPrice,
-      supplier,
-      poNumber: poNumber.trim(),
-      newAvgCost,
-      percentChange,
-    });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/stock/receive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          equipmentId: selectedItem.id,
+          quantity: receiveQty,
+          unitCost: newPrice,
+          supplier,
+          poNumber: poNumber.trim() || undefined,
+          role,
+        }),
+      });
 
-    onClose();
+      if (!res.ok) {
+        throw new Error("รับเข้าสต็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+      }
+
+      setSubmitSuccess(true);
+      window.setTimeout(async () => {
+        await onReceived();
+        onClose();
+      }, 900);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "รับเข้าสต็อกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const addNewSupplier = (name: string) => {
@@ -259,7 +291,10 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[120]">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={submitting || submitSuccess ? undefined : onClose}
+      />
 
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
@@ -275,7 +310,8 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
 
             <button
               onClick={onClose}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+              disabled={submitting || submitSuccess}
+              className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="h-4 w-4" />
             </button>
@@ -567,18 +603,35 @@ export default function ReceiveStockModal({ open, items, onClose }: Props) {
               </div>
             </div>
 
+            {submitError && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {submitError}
+              </div>
+            )}
+
+            {submitSuccess && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                บันทึกรับเข้าสต็อกสำเร็จ
+              </div>
+            )}
+
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 onClick={onClose}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                disabled={submitting || submitSuccess}
+                className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={submit}
-                className="h-10 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                disabled={submitting || submitSuccess}
+                className="flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                บันทึกรับเข้า
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {submitting ? "กำลังบันทึก..." : "บันทึกรับเข้า"}
               </button>
             </div>
           </div>

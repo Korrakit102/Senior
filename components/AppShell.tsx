@@ -359,56 +359,57 @@ export default function AppShell() {
     setDamageReportRows((prev) => [...rows, ...prev]);
   };
 
-  useEffect(() => {
-    const loadStock = async () => {
-      try {
-        const res = await fetch("/api/stock");
-        if (!res.ok) throw new Error("failed to load stock");
-        const rows = (await res.json()) as Array<{
-          id: string;
-          code: string;
-          name: string;
-          brand: string;
-          category: string;
-          system: string;
-          zone: string;
-          status: string;
-          qty: number;
-          available: number;
-          pricePerDay: number;
-          cost: number;
-        }>;
+  const loadStock = async () => {
+    try {
+      const res = await fetch("/api/stock");
+      if (!res.ok) throw new Error("failed to load stock");
+      const rows = (await res.json()) as Array<{
+        id: string;
+        code: string;
+        name: string;
+        brand: string;
+        category: string;
+        system: string;
+        zone: string;
+        status: string;
+        qty: number;
+        available: number;
+        pricePerDay: number;
+        cost: number;
+      }>;
 
-        if (rows.length === 0) {
-          await fetch("/api/stock", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: initialStock }),
-          });
-          setStockData(initialStock);
-          return;
-        }
-
-        setStockData(
-          rows.map((r) => ({
-            id: r.id,
-            code: r.code,
-            name: r.name,
-            brand: r.brand,
-            category: toCategory(r.category),
-            system: r.system,
-            zone: r.zone,
-            status: toItemStatus(r.status),
-            qty: r.qty,
-            available: r.available,
-            pricePerDay: r.pricePerDay,
-            cost: r.cost,
-          }))
-        );
-      } catch {
+      if (rows.length === 0) {
+        await fetch("/api/stock", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: initialStock }),
+        });
         setStockData(initialStock);
+        return;
       }
-    };
+
+      setStockData(
+        rows.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+          brand: r.brand,
+          category: toCategory(r.category),
+          system: r.system,
+          zone: r.zone,
+          status: toItemStatus(r.status),
+          qty: r.qty,
+          available: r.available,
+          pricePerDay: r.pricePerDay,
+          cost: r.cost,
+        }))
+      );
+    } catch {
+      setStockData(initialStock);
+    }
+  };
+
+  useEffect(() => {
     loadStock();
   }, []);
 
@@ -859,6 +860,7 @@ export default function AppShell() {
             role={role}
             stockData={stockData}
             onStockChange={applyStockChange}
+            onStockReload={loadStock}
           />
         )}
         {tab === "issueReturn" && (

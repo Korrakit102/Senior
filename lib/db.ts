@@ -110,6 +110,24 @@ export type StockHistoryRow = {
   created_at: string;
 };
 
+// รูปแบบประวัติการรับเข้าสต็อกที่อ่านจากตาราง stock_receipts
+export type StockReceiptRow = {
+  id: string;
+  stock_id: string;
+  stock_code: string;
+  stock_name: string;
+  quantity: number;
+  unit_cost: number;
+  supplier: string;
+  po_number: string | null;
+  prev_qty: number;
+  prev_avg_cost: number;
+  new_qty: number;
+  new_avg_cost: number;
+  received_by_role: string;
+  created_at: string;
+};
+
 // Type สำหรับประวัติการแก้ไขอุปกรณ์ใน Event
 export type EquipmentHistoryRow = {
   id: string;
@@ -262,6 +280,33 @@ async function ensureStockHistoryTable(client?: PoolClient) {
   }
 }
 
+// ตรวจและสร้างตาราง stock_receipts สำหรับเก็บประวัติการรับเข้าสต็อก
+async function ensureStockReceiptsTable(client?: PoolClient) {
+  const c = client ?? (await pool.connect());
+  try {
+    await c.query(`
+      CREATE TABLE IF NOT EXISTS stock_receipts (
+        id TEXT PRIMARY KEY,
+        stock_id TEXT NOT NULL,
+        stock_code TEXT NOT NULL,
+        stock_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_cost NUMERIC NOT NULL,
+        supplier TEXT NOT NULL,
+        po_number TEXT,
+        prev_qty INTEGER NOT NULL,
+        prev_avg_cost NUMERIC NOT NULL,
+        new_qty INTEGER NOT NULL,
+        new_avg_cost NUMERIC NOT NULL,
+        received_by_role TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  } finally {
+    if (!client) c.release();
+  }
+}
+
 // ตรวจและสร้างตาราง equipment_history สำหรับประวัติการเพิ่ม/ลบอุปกรณ์ใน Event
 async function ensureEquipmentHistoryTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
@@ -303,6 +348,7 @@ async function ensureTables(client?: PoolClient) {
   await ensureEventsTable(client);
   await ensureStockTable(client);
   await ensureStockHistoryTable(client);
+  await ensureStockReceiptsTable(client);
   await ensureEquipmentHistoryTable(client);
   await ensureSettingsTable(client);
 }
@@ -933,6 +979,86 @@ export async function adjustStock(
     }
 
     return results;
+  } finally {
+    client.release();
+  }
+}
+
+// รับเข้าสต็อก: คำนวณต้นทุนเฉลี่ยถ่วงน้ำหนักใหม่ อัปเดต stock_items แล้วบันทึกประวัติลง stock_receipts แบบ atomic
+export async function receiveStock(payload: {
+  equipmentId: string;
+  quantity: number;
+  unitCost: number;
+  supplier: string;
+  poNumber?: string;
+  receivedByRole: string;
+}): Promise<StockRowDb> {
+  const client = await pool.connect();
+  try {
+    await ensureStockTable(client);
+    await ensureStockHistoryTable(client);
+    await ensureStockReceiptsTable(client);
+    await client.query("BEGIN");
+
+    const currentRes = await client.query<StockRowDb>(
+      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost
+       FROM stock_items WHERE id = $1 FOR UPDATE`,
+      [payload.equipmentId]
+    );
+    const current = currentRes.rows[0];
+    if (!current) {
+      await client.query("ROLLBACK");
+      throw new Error("stock item not found");
+    }
+
+    const prevQty = current.qty;
+    const prevAvgCost = current.cost;
+    const newQty = prevQty + payload.quantity;
+    // สูตรเดียวกับที่ preview ใน ReceiveStockModal
+    const newAvgCost =
+      newQty > 0
+        ? (prevQty * prevAvgCost + payload.quantity * payload.unitCost) / newQty
+        : prevAvgCost;
+    const newAvailable = current.available + payload.quantity;
+    const roundedAvgCost = Math.round(newAvgCost);
+
+    const updatedRes = await client.query<StockRowDb>(
+      `UPDATE stock_items
+       SET qty = $2, available = $3, cost = $4
+       WHERE id = $1
+       RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost`,
+      [payload.equipmentId, newQty, newAvailable, roundedAvgCost]
+    );
+    const updated = updatedRes.rows[0];
+
+    const createdAt = new Date().toISOString();
+    await client.query(
+      `INSERT INTO stock_receipts (
+        id, stock_id, stock_code, stock_name, quantity, unit_cost, supplier, po_number,
+        prev_qty, prev_avg_cost, new_qty, new_avg_cost, received_by_role, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [
+        `SRC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        current.id, current.code, current.name,
+        payload.quantity, payload.unitCost, payload.supplier, payload.poNumber ?? null,
+        prevQty, prevAvgCost, newQty, newAvgCost,
+        payload.receivedByRole, createdAt,
+      ]
+    );
+
+    await insertStockHistory(client, current.id, current.code, current.name, "qty", prevQty, newQty, createdAt);
+    if (current.available !== newAvailable) {
+      await insertStockHistory(client, current.id, current.code, current.name, "available", current.available, newAvailable, createdAt);
+    }
+    if (prevAvgCost !== roundedAvgCost) {
+      await insertStockHistory(client, current.id, current.code, current.name, "cost", prevAvgCost, roundedAvgCost, createdAt);
+    }
+
+    await client.query("COMMIT");
+    return updated;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
   } finally {
     client.release();
   }

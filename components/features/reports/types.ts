@@ -76,6 +76,7 @@ export type DamageRow = {
   date: string;
   qty?: number;
   cost: number;
+  billedCost?: number | null;
   status: "reported" | "fixed";
 };
 

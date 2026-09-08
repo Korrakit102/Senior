@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useState } from "react";
-import { X, Download } from "lucide-react";
+import { X, Download, Pencil } from "lucide-react";
 import type { DamageRow, EventReportRow } from "../types";
 import { fmtDateRangeThai } from "../../events/helpers";
 
@@ -10,6 +10,7 @@ interface Props {
   damageRow: DamageRow | null;
   event: EventReportRow | null;
   onClose: () => void;
+  onEdit: () => void;
 }
 
 const COMPANY = {
@@ -31,7 +32,7 @@ function todayTH(): string {
   return new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 }
 
-export default function DamageInvoiceModal({ open, damageRow, event, onClose }: Props) {
+export default function DamageInvoiceModal({ open, damageRow, event, onClose, onEdit }: Props) {
   const printRef = React.useRef<HTMLDivElement>(null);
   const [includeVat, setIncludeVat] = useState(true);
   const [includeWht, setIncludeWht] = useState(true);
@@ -68,7 +69,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose }: 
 
   if (!open || !damageRow) return null;
 
-  const grandTotal = damageRow.cost;
+  const grandTotal = damageRow.billedCost ?? damageRow.cost;
   const vat = includeVat ? grandTotal * 0.07 : 0;
   const wht = includeWht ? grandTotal * 0.03 : 0;
   const netTotal = grandTotal + vat - wht;
@@ -92,6 +93,13 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose }: 
             >
               <Download className="h-4 w-4" />
               ดาวน์โหลด PDF
+            </button>
+            <button
+              onClick={onEdit}
+              className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm hover:bg-zinc-50"
+              title="แก้ไขมูลค่าความเสียหาย"
+            >
+              <Pencil className="h-4 w-4" />
             </button>
             <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-100">
               <X className="h-4 w-4" />
@@ -216,7 +224,7 @@ function DocContent({
                 {damageRow.qty != null ? damageRow.qty : "-"}
               </td>
               <td style={{ border: "1px solid #e4e4e7", padding: "3px 6px", textAlign: "right", fontWeight: 600 }}>
-                {fmt(damageRow.cost)}
+                {fmt(grandTotal)}
               </td>
             </tr>
             <tr style={{ background: "#fef2f2" }}>
@@ -251,7 +259,8 @@ function DocContent({
         <div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
             <tbody>
-              <TotalRow label="ยอดรวม" value={fmt(grandTotal)} />
+              <TotalRow label="มูลค่าความเสียหาย (ประเมิน)" value={fmt(damageRow.cost)} dim />
+              <TotalRow label="ยอดรวม (มูลค่าเรียกเก็บ)" value={fmt(grandTotal)} />
               {includeVat && <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />}
               {includeWht && <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />}
               <tr style={{ borderTop: "2px solid #dc2626" }}>

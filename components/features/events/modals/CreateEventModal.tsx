@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, Plus, X } from "lucide-react";
 import type { CreateForm } from "../types";
-import { toDateLocal } from "../helpers";
+import { toDateLocal, toYMD } from "../helpers";
+
+const MAX_BUDGET_THB = 2_000_000_000;
 
 function Input({
   label,
@@ -13,6 +15,8 @@ function Input({
   placeholder,
   type = "text",
   error,
+  min,
+  hint,
 }: {
   label: string;
   required?: boolean;
@@ -21,6 +25,8 @@ function Input({
   placeholder?: string;
   type?: string;
   error?: string;
+  min?: string;
+  hint?: string;
 }) {
   return (
     <div>
@@ -32,6 +38,7 @@ function Input({
         onChange={(e) => onChange(e.target.value)}
         type={type}
         placeholder={placeholder}
+        min={min}
         className={[
           "h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none",
           error
@@ -39,7 +46,100 @@ function Input({
             : "border-zinc-200 focus:ring-2 focus:ring-zinc-200",
         ].join(" ")}
       />
-      {error ? <div className="mt-1 text-xs text-red-600">{error}</div> : null}
+      {error ? (
+        <div className="mt-1 text-xs text-red-600">{error}</div>
+      ) : hint ? (
+        <div className="mt-1 text-xs text-zinc-500">{hint}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function formatBudgetDisplay(digits: string) {
+  if (!digits) return "";
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function BudgetInput({
+  label,
+  required,
+  value,
+  onChange,
+  placeholder,
+  error,
+  hint,
+}: {
+  label: string;
+  required?: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  error?: string;
+  hint?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const input = e.currentTarget;
+    if (input.selectionStart === null || input.selectionStart !== input.selectionEnd) return;
+    const pos = input.selectionStart;
+    if (e.key === "Backspace" && pos > 0 && input.value[pos - 1] === ",") {
+      input.setSelectionRange(pos - 1, pos - 1);
+    } else if (e.key === "Delete" && pos < input.value.length && input.value[pos] === ",") {
+      input.setSelectionRange(pos + 1, pos + 1);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const cursor = input.selectionStart ?? input.value.length;
+    const digitsBeforeCursor = input.value.slice(0, cursor).replace(/[^0-9]/g, "").length;
+    const rawDigits = input.value.replace(/[^0-9]/g, "");
+
+    onChange(rawDigits);
+
+    requestAnimationFrame(() => {
+      if (!inputRef.current) return;
+      const formatted = formatBudgetDisplay(rawDigits);
+      let seen = 0;
+      let caretPos = formatted.length;
+      for (let i = 0; i < formatted.length; i++) {
+        if (/[0-9]/.test(formatted[i])) seen++;
+        if (seen === digitsBeforeCursor) {
+          caretPos = i + 1;
+          break;
+        }
+      }
+      if (digitsBeforeCursor === 0) caretPos = 0;
+      inputRef.current.setSelectionRange(caretPos, caretPos);
+    });
+  };
+
+  return (
+    <div>
+      <div className="mb-1 text-xs font-semibold text-zinc-700">
+        {label} {required ? <span className="text-red-600">*</span> : null}
+      </div>
+      <input
+        ref={inputRef}
+        value={formatBudgetDisplay(value)}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        type="text"
+        inputMode="numeric"
+        placeholder={placeholder}
+        className={[
+          "h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none",
+          error
+            ? "border-red-300 ring-2 ring-red-100"
+            : "border-zinc-200 focus:ring-2 focus:ring-zinc-200",
+        ].join(" ")}
+      />
+      {error ? (
+        <div className="mt-1 text-xs text-red-600">{error}</div>
+      ) : hint ? (
+        <div className="mt-1 text-xs text-zinc-500">{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -298,9 +398,23 @@ export default function CreateEventModal({
     if (form.budgetTHB.trim() && Number.isNaN(Number(form.budgetTHB))) {
       e.budgetTHB = "งบประมาณต้องเป็นตัวเลข";
     }
+    if (
+      form.budgetTHB.trim() &&
+      !Number.isNaN(Number(form.budgetTHB)) &&
+      Number(form.budgetTHB) > MAX_BUDGET_THB
+    ) {
+      e.budgetTHB = "งบประมาณต้องไม่เกิน 2,000,000,000 บาท";
+    }
     if (!form.venue.trim()) e.venue = "กรุณากรอกสถานที่";
     if (!form.startDate) e.startDate = "กรุณาเลือกวันเริ่ม";
     if (!form.endDate) e.endDate = "กรุณาเลือกวันจบ";
+    const today = toDateLocal(toYMD(new Date()));
+    if (form.startDate && toDateLocal(form.startDate) < today) {
+      e.startDate = "วันเริ่มต้องไม่ย้อนหลัง";
+    }
+    if (form.endDate && toDateLocal(form.endDate) < today) {
+      e.endDate = "วันจบต้องไม่ย้อนหลัง";
+    }
     if (
       form.startDate &&
       form.endDate &&
@@ -414,13 +528,14 @@ export default function CreateEventModal({
                 onChange={(v) => setForm((s) => ({ ...s, branchCode: v }))}
                 placeholder="รหัสสาขา (ไม่บังคับ)"
               />
-              <Input
+              <BudgetInput
                 label="งบประมาณ (บาท)"
                 required
                 value={form.budgetTHB}
                 onChange={(v) => setForm((s) => ({ ...s, budgetTHB: v }))}
                 placeholder="กรอกจำนวนงบประมาณ"
                 error={errors.budgetTHB}
+                hint="กรอกได้สูงสุด 2,000,000,000 บาท"
               />
             </div>
 
@@ -433,7 +548,7 @@ export default function CreateEventModal({
             </div>
 
             <div className="mt-4">
-              <Input
+              <BudgetInput
                 label="จำนวนผู้เข้าร่วม"
                 value={form.attendees}
                 onChange={(v) => setForm((s) => ({ ...s, attendees: v }))}
@@ -459,6 +574,7 @@ export default function CreateEventModal({
                 value={form.startDate}
                 onChange={(v) => setForm((s) => ({ ...s, startDate: v }))}
                 error={errors.startDate}
+                min={toYMD(new Date())}
               />
               <Input
                 label="วันจบอีเวนต์"
@@ -467,6 +583,7 @@ export default function CreateEventModal({
                 value={form.endDate}
                 onChange={(v) => setForm((s) => ({ ...s, endDate: v }))}
                 error={errors.endDate}
+                min={toYMD(new Date())}
               />
             </div>
 

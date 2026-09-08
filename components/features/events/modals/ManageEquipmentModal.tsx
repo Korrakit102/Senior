@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, ChevronDown, Clock, Package, Plus, X } from "lucide-react";
+import { Boxes, Clock, Package, Plus, Search, X } from "lucide-react";
 import type { StockRow } from "../../../AppShell";
 import type { SelectedEquipment } from "../types";
-import { formatTHB, toDateLocal } from "../helpers";
+import { formatTHB, toDateLocal, toYMD } from "../helpers";
 
 type HistoryEntry = {
   id: string;
@@ -46,6 +46,7 @@ export default function ManageEquipmentModal({
   const [errors, setErrors] = useState<{ startDate?: string; endDate?: string }>({});
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [selectedName, setSelectedName] = useState("");
+  const [equipQuery, setEquipQuery] = useState("");
   const [qty, setQty] = useState("");
   const [selectErrors, setSelectErrors] = useState<{ name?: string; qty?: string }>({});
   const [isEquipOpen, setIsEquipOpen] = useState(false);
@@ -77,6 +78,12 @@ export default function ManageEquipmentModal({
     const alreadyInList = equipment.find((e) => e.name === selectedOption.name)?.qty ?? 0;
     return Math.max(0, selectedOption.available - alreadyInList);
   }, [selectedOption, equipment]);
+
+  const filteredEquipmentOptions = useMemo(() => {
+    const q = equipQuery.trim().toLowerCase();
+    if (!q) return equipmentOptions;
+    return equipmentOptions.filter((opt) => opt.name.toLowerCase().includes(q));
+  }, [equipmentOptions, equipQuery]);
 
   // ✅ โหลดประวัติจาก database เมื่อเปิด modal
   useEffect(() => {
@@ -139,6 +146,13 @@ export default function ManageEquipmentModal({
     const e: { startDate?: string; endDate?: string } = {};
     if (!startDate) e.startDate = "กรุณาเลือกวันเบิกอุปกรณ์";
     if (!endDate) e.endDate = "กรุณาเลือกวันคืนอุปกรณ์";
+    const today = toDateLocal(toYMD(new Date()));
+    if (startDate && toDateLocal(startDate) < today) {
+      e.startDate = "วันเบิกอุปกรณ์ต้องไม่ย้อนหลัง";
+    }
+    if (endDate && toDateLocal(endDate) < today) {
+      e.endDate = "วันคืนอุปกรณ์ต้องไม่ย้อนหลัง";
+    }
     if (startDate && endDate && toDateLocal(startDate) > toDateLocal(endDate)) {
       e.endDate = "วันคืนอุปกรณ์ต้องไม่ก่อนวันเบิกอุปกรณ์";
     }
@@ -148,10 +162,18 @@ export default function ManageEquipmentModal({
 
   const openSelect = () => {
     setSelectedName("");
+    setEquipQuery("");
     setQty("");
     setSelectErrors({});
     setIsEquipOpen(false);
     setIsSelectOpen(true);
+  };
+
+  const handleSelectEquip = (opt: { name: string; available: number }) => {
+    setSelectedName(opt.name);
+    setEquipQuery(`${opt.name} (พร้อมใช้: ${opt.available})`);
+    setSelectErrors((s) => ({ ...s, name: undefined }));
+    setIsEquipOpen(false);
   };
 
   const validateSelect = () => {
@@ -267,13 +289,13 @@ export default function ManageEquipmentModal({
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <div className="mb-1 text-xs font-semibold text-zinc-700">วันเบิกอุปกรณ์ <span className="text-red-600">*</span></div>
-                  <input value={startDate} onChange={(e) => setStartDate(e.target.value)} type="date"
+                  <input value={startDate} onChange={(e) => setStartDate(e.target.value)} type="date" min={toYMD(new Date())}
                     className={["h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none", errors.startDate ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200 focus:ring-2 focus:ring-zinc-200"].join(" ")} />
                   {errors.startDate && <div className="mt-1 text-xs text-red-600">{errors.startDate}</div>}
                 </div>
                 <div>
                   <div className="mb-1 text-xs font-semibold text-zinc-700">วันคืนอุปกรณ์ <span className="text-red-600">*</span></div>
-                  <input value={endDate} onChange={(e) => setEndDate(e.target.value)} type="date"
+                  <input value={endDate} onChange={(e) => setEndDate(e.target.value)} type="date" min={toYMD(new Date())}
                     className={["h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none", errors.endDate ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200 focus:ring-2 focus:ring-zinc-200"].join(" ")} />
                   {errors.endDate && <div className="mt-1 text-xs text-red-600">{errors.endDate}</div>}
                 </div>
@@ -429,23 +451,40 @@ export default function ManageEquipmentModal({
               <div className="px-5 pb-5">
                 <div ref={equipRef} className="relative">
                   <div className="mb-1 text-xs font-semibold text-zinc-700">อุปกรณ์</div>
-                  <button onClick={() => setIsEquipOpen((v) => !v)} type="button"
-                    className={["flex h-10 w-full items-center justify-between rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900", selectErrors.name ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200"].join(" ")}>
-                    <span className={selectedName ? "text-zinc-900" : "text-zinc-500"}>
-                      {selectedName ? `${selectedName} (พร้อมใช้: ${selectedOption?.available ?? "-"})` : "เลือกอุปกรณ์"}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-zinc-500" />
-                  </button>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                    <input
+                      value={equipQuery}
+                      onChange={(e) => {
+                        setEquipQuery(e.target.value);
+                        setSelectedName("");
+                        setIsEquipOpen(true);
+                      }}
+                      onFocus={() => setIsEquipOpen(true)}
+                      onBlur={() => setTimeout(() => setIsEquipOpen(false), 150)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && filteredEquipmentOptions.length > 0) {
+                          e.preventDefault();
+                          handleSelectEquip(filteredEquipmentOptions[0]);
+                        }
+                      }}
+                      type="text"
+                      placeholder="พิมพ์ชื่ออุปกรณ์เพื่อค้นหา"
+                      className={["h-10 w-full rounded-xl border bg-zinc-50 pl-9 pr-3 text-sm text-zinc-900 outline-none", selectErrors.name ? "border-red-300 ring-2 ring-red-100" : "border-zinc-200 focus:ring-2 focus:ring-zinc-200"].join(" ")}
+                    />
+                  </div>
                   {selectErrors.name && <div className="mt-1 text-xs text-red-600">{selectErrors.name}</div>}
                   {isEquipOpen && (
                     <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-[140] rounded-xl border border-zinc-200 bg-white shadow-lg">
                       <div className="max-h-[260px] overflow-auto p-1">
-                        {equipmentOptions.length === 0 ? (
-                          <div className="px-3 py-2 text-sm text-zinc-500">ไม่มีอุปกรณ์ที่พร้อมใช้</div>
+                        {filteredEquipmentOptions.length === 0 ? (
+                          <div className="px-3 py-2 text-sm text-zinc-500">
+                            {equipmentOptions.length === 0 ? "ไม่มีอุปกรณ์ที่พร้อมใช้" : "ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา"}
+                          </div>
                         ) : (
-                          equipmentOptions.map((opt) => (
+                          filteredEquipmentOptions.map((opt) => (
                             <button key={opt.name} type="button"
-                              onClick={() => { setSelectedName(opt.name); setSelectErrors((s) => ({ ...s, name: undefined })); setIsEquipOpen(false); }}
+                              onClick={() => handleSelectEquip(opt)}
                               className={["flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition", opt.name === selectedName ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-50"].join(" ")}>
                               {opt.name} (พร้อมใช้: {opt.available})
                             </button>

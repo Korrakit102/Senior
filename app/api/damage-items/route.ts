@@ -15,6 +15,7 @@ export async function GET() {
       date: r.event_date,
       qty: r.qty,
       cost: r.cost,
+      billedCost: r.billed_cost,
       status: r.status,
     }))
   );

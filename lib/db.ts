@@ -121,6 +121,7 @@ export type DamageItemRow = {
   event_date: string;
   qty: number;
   cost: number;
+  billed_cost: number | null;
   status: string;
   created_at: string;
 };
@@ -346,6 +347,11 @@ async function ensureDamageItemsTable(client?: PoolClient) {
         status TEXT NOT NULL DEFAULT 'reported',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+    // มูลค่าเรียกเก็บจริงจากผู้ทำเสียหาย แก้ไขได้แยกจาก cost (มูลค่าความเสียหายที่คำนวณอัตโนมัติ) — NULL จนกว่าจะมีการแก้ไขบันทึกครั้งแรก
+    await c.query(`
+      ALTER TABLE damage_items
+      ADD COLUMN IF NOT EXISTS billed_cost INTEGER;
     `);
   } finally {
     if (!client) c.release();
@@ -1225,10 +1231,52 @@ export async function listDamageItems(): Promise<DamageItemRow[]> {
   try {
     await ensureDamageItemsTable(client);
     const res: QueryResult<DamageItemRow> = await client.query(
-      `SELECT id, event_id, item_name, code, event_date, qty, cost, status, created_at
+      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at
        FROM damage_items ORDER BY created_at DESC`
     );
     return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+// แก้ไข "มูลค่าความเสียหาย" และ "มูลค่าเรียกเก็บ" ของ damage_items แถวหนึ่ง
+// รองรับ row ที่มาจาก state ชั่วคราวใน client (id ยังไม่ตรงกับ DB) โดย fallback ไปจับคู่ด้วย event_id + item_name แถวล่าสุด
+export async function updateDamageItemAmounts(payload: {
+  id: string;
+  eventId: string;
+  itemName: string;
+  cost: number;
+  billedCost: number;
+}): Promise<DamageItemRow | null> {
+  const client = await pool.connect();
+  try {
+    await ensureDamageItemsTable(client);
+
+    let res: QueryResult<DamageItemRow> = await client.query(
+      `UPDATE damage_items
+       SET cost = $2, billed_cost = $3
+       WHERE id = $1
+       RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at`,
+      [payload.id, payload.cost, payload.billedCost]
+    );
+
+    if (res.rows.length === 0) {
+      res = await client.query(
+        `UPDATE damage_items
+         SET cost = $3, billed_cost = $4
+         WHERE id = (
+           SELECT id FROM damage_items
+           WHERE event_id = $1 AND item_name = $2
+           ORDER BY created_at DESC
+           LIMIT 1
+         )
+         RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at`,
+        [payload.eventId, payload.itemName, payload.cost, payload.billedCost]
+      );
+    }
+
+    return res.rows[0] ?? null;
   } finally {
     client.release();
   }

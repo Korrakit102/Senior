@@ -45,6 +45,7 @@ import AddDocModal from "./modals/AddDocModal";
 import QuotationInvoiceModal from "./modals/QuotationInvoiceModal";
 import WorkOrderModal from "./modals/WorkOrderModal";
 import DamageInvoiceModal from "./modals/DamageInvoiceModal";
+import EditDamageAmountModal from "./modals/EditDamageAmountModal";
 
 function daysBetween(range: string): number {
   const parts = range.split(" - ");
@@ -137,6 +138,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [quotationEvent, setQuotationEvent] = useState<EventReportRow | null>(null);
   const [workOrderEvent, setWorkOrderEvent] = useState<EventReportRow | null>(null);
   const [damageInvoiceRow, setDamageInvoiceRow] = useState<DamageRow | null>(null);
+  const [editDamageRow, setEditDamageRow] = useState<DamageRow | null>(null);
+  const [damageAmountOverrides, setDamageAmountOverrides] = useState<
+    Record<string, { cost: number; billedCost: number }>
+  >({});
   const [hiddenEventDocIds, setHiddenEventDocIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -408,6 +413,17 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     );
   }, [eventReportRows, extraDamageRows, persistedDamageRows]);
 
+  // ทับค่า cost/billedCost ด้วยค่าที่แก้ไขล่าสุดในเซสชันนี้ (ครอบคลุมทั้งแถวที่มาจาก DB และแถว optimistic ที่ยังไม่มี id ตรงกับ DB)
+  const displayedDamageRows = useMemo<DamageRow[]>(
+    () =>
+      damageRows.map((r) =>
+        damageAmountOverrides[r.id]
+          ? { ...r, cost: damageAmountOverrides[r.id].cost, billedCost: damageAmountOverrides[r.id].billedCost }
+          : r
+      ),
+    [damageRows, damageAmountOverrides]
+  );
+
   const filteredStock = useMemo(
     () => filterStockRows(stockRows, query),
     [stockRows, query]
@@ -419,8 +435,8 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   );
 
   const filteredDamage = useMemo(
-    () => filterDamageRows(damageRows, query),
-    [damageRows, query]
+    () => filterDamageRows(displayedDamageRows, query),
+    [displayedDamageRows, query]
   );
 
   const filteredDocs = useMemo(
@@ -535,6 +551,41 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const damageInvoiceEvent = damageInvoiceRow
     ? eventReportRows.find((r) => r.id === damageInvoiceRow.eventId) ?? null
     : null;
+
+  const onOpenDamageEdit = (row: DamageRow) => {
+    setEditDamageRow(row);
+  };
+
+  const onSaveDamageEdit = async (payload: { cost: number; billedCost: number }) => {
+    if (!editDamageRow) return;
+
+    try {
+      const res = await fetch(`/api/damage-items/${editDamageRow.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: editDamageRow.eventId ?? "",
+          itemName: editDamageRow.itemName,
+          cost: payload.cost,
+          billedCost: payload.billedCost,
+        }),
+      });
+      if (!res.ok) throw new Error("failed to update damage amounts");
+
+      setDamageAmountOverrides((prev) => ({
+        ...prev,
+        [editDamageRow.id]: { cost: payload.cost, billedCost: payload.billedCost },
+      }));
+      setDamageInvoiceRow((prev) =>
+        prev && prev.id === editDamageRow.id
+          ? { ...prev, cost: payload.cost, billedCost: payload.billedCost }
+          : prev
+      );
+      setEditDamageRow(null);
+    } catch {
+      alert("บันทึกมูลค่าความเสียหายไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+    }
+  };
 
   return (
     <div className="px-6 py-8">
@@ -672,6 +723,14 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         damageRow={damageInvoiceRow}
         event={damageInvoiceEvent}
         onClose={() => setDamageInvoiceRow(null)}
+        onEdit={() => damageInvoiceRow && onOpenDamageEdit(damageInvoiceRow)}
+      />
+
+      <EditDamageAmountModal
+        open={editDamageRow !== null}
+        damageRow={editDamageRow}
+        onClose={() => setEditDamageRow(null)}
+        onSave={onSaveDamageEdit}
       />
 
       <ReportDocDetailModal

@@ -24,7 +24,7 @@ export default function ReportsActionDocButton({ label, onClick, disabled }: Pro
       </button>
       {disabled && (
         <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
-          ต้องอนุมัติก่อนจึงจะออกเอกสารได้
+          อีเวนต์รออนุมัติยังออกเอกสารไม่ได้
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
         </div>
       )}

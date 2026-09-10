@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Eye, MoreVertical, Pencil, Trash2, Wrench } from "lucide-react";
-import type { StockRow } from "../types";
-import { fmt, getCategoryTone, getDisplayStatus, getStatusTone } from "../helpers";
+import { Eye, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import type { ItemStatus, StockRow } from "../types";
+import { fmt, getCategoryTone, getFilteredStockStatusParts, getStatusTone } from "../helpers";
 import StockPill from "./StockPill";
 
 type Props = {
   rows: StockRow[];
+  statusFilter: "ทั้งหมด" | ItemStatus;
   showEdit: boolean;
   showDelete: boolean;
   onView: (item: StockRow) => void;
@@ -120,12 +121,21 @@ function RowActionsMenu({
 
 export default function StockTable({
   rows,
+  statusFilter,
   showEdit,
   showDelete,
   onView,
   onEdit,
   onDelete,
 }: Props) {
+  const displayRows = rows.flatMap((row) =>
+    getFilteredStockStatusParts(row, statusFilter).map((part) => ({
+      row,
+      part,
+      key: `${row.id}-${part.status}`,
+    }))
+  );
+
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -146,15 +156,14 @@ export default function StockTable({
           </thead>
 
           <tbody className="text-sm text-zinc-800">
-            {rows.map((r, idx) => {
+            {displayRows.map(({ row: r, part, key }, idx) => {
               const catTone = getCategoryTone(r.category);
-              const displayStatus = getDisplayStatus(r);
+              const displayStatus = part.status;
               const statusTone = getStatusTone(displayStatus);
-              const hasRepairWhileReady = r.available > 0 && r.repairing > 0;
 
               return (
                 <tr
-                  key={`${r.id}-${idx}`}
+                  key={key}
                   className={idx % 2 ? "bg-zinc-50/30" : "bg-white"}
                 >
                   <td className="px-6 py-5">
@@ -182,26 +191,12 @@ export default function StockTable({
                   </td>
 
                   <td className="px-6 py-5">
-                    <div className="relative inline-block">
-                      <StockPill tone={statusTone}>{displayStatus}</StockPill>
-                      {hasRepairWhileReady && (
-                        <span
-                          title={`${fmt(r.repairing)} ชิ้นกำลังซ่อม`}
-                          className="absolute -right-1.5 -top-1.5 inline-flex items-center gap-0.5 rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-none text-white shadow ring-1 ring-white"
-                        >
-                          <Wrench className="h-2 w-2" />
-                          {fmt(r.repairing)}
-                        </span>
-                      )}
-                    </div>
+                    <StockPill tone={statusTone}>{displayStatus}</StockPill>
                   </td>
 
                   <td className="px-6 py-5 text-center">
-                    <div className="font-semibold">{fmt(r.qty)}</div>
-                    <div className="text-xs text-zinc-500">
-                      ({fmt(r.available)} พร้อมใช้
-                      {r.repairing > 0 ? `, ${fmt(r.repairing)} ซ่อมแซม` : ""})
-                    </div>
+                    <div className="font-semibold">{fmt(part.qty)}</div>
+                    <div className="text-xs text-zinc-500">{part.label}</div>
                   </td>
 
                   <td className="px-6 py-5 text-center">{fmt(r.pricePerDay)} ฿</td>

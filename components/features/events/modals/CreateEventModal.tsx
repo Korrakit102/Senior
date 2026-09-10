@@ -6,6 +6,7 @@ import type { CreateForm } from "../types";
 import { toDateLocal, toYMD } from "../helpers";
 
 const MAX_BUDGET_THB = 2_000_000_000;
+const MAX_BUDGET_DIGITS = String(MAX_BUDGET_THB);
 
 function Input({
   label,
@@ -60,6 +61,17 @@ function formatBudgetDisplay(digits: string) {
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+function clampBudgetDigits(digits: string) {
+  const normalized = digits.replace(/^0+(?=\d)/, "");
+  if (
+    normalized.length > MAX_BUDGET_DIGITS.length ||
+    (normalized.length === MAX_BUDGET_DIGITS.length && normalized > MAX_BUDGET_DIGITS)
+  ) {
+    return MAX_BUDGET_DIGITS;
+  }
+  return normalized;
+}
+
 function BudgetInput({
   label,
   required,
@@ -95,22 +107,26 @@ function BudgetInput({
     const cursor = input.selectionStart ?? input.value.length;
     const digitsBeforeCursor = input.value.slice(0, cursor).replace(/[^0-9]/g, "").length;
     const rawDigits = input.value.replace(/[^0-9]/g, "");
+    const nextDigits = clampBudgetDigits(rawDigits);
+    const nextDigitsBeforeCursor =
+      nextDigits === rawDigits ? digitsBeforeCursor : nextDigits.length;
 
-    onChange(rawDigits);
+    onChange(nextDigits);
 
     requestAnimationFrame(() => {
       if (!inputRef.current) return;
-      const formatted = formatBudgetDisplay(rawDigits);
+      const formatted = formatBudgetDisplay(nextDigits);
       let seen = 0;
       let caretPos = formatted.length;
+      const targetDigits = Math.min(nextDigitsBeforeCursor, nextDigits.length);
       for (let i = 0; i < formatted.length; i++) {
         if (/[0-9]/.test(formatted[i])) seen++;
-        if (seen === digitsBeforeCursor) {
+        if (seen === targetDigits) {
           caretPos = i + 1;
           break;
         }
       }
-      if (digitsBeforeCursor === 0) caretPos = 0;
+      if (targetDigits === 0) caretPos = 0;
       inputRef.current.setSelectionRange(caretPos, caretPos);
     });
   };
@@ -266,7 +282,9 @@ function CompanyDropdown({
                     className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-emerald-600 hover:bg-emerald-50"
                   >
                     <Plus className="h-4 w-4" />
-                    <span className="truncate">เพิ่มบริษัท "{trimmedValue}"</span>
+                    <span className="truncate">
+                      เพิ่มบริษัท &quot;{trimmedValue}&quot;
+                    </span>
                   </button>
                 )}
               </>
@@ -284,19 +302,33 @@ function TextArea({
   value,
   onChange,
   placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-semibold text-zinc-700">{label}</div>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="text-xs font-semibold text-zinc-700">{label}</div>
+        {maxLength ? (
+          <div className="text-xs font-medium text-zinc-500">
+            {value.length}/{maxLength}
+          </div>
+        ) : null}
+      </div>
       <textarea
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(
+            maxLength ? e.target.value.slice(0, maxLength) : e.target.value
+          )
+        }
         placeholder={placeholder}
+        maxLength={maxLength}
         className="h-20 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
       />
     </div>
@@ -544,6 +576,7 @@ export default function CreateEventModal({
                 label="คำอธิบาย"
                 value={form.description}
                 onChange={(v) => setForm((s) => ({ ...s, description: v }))}
+                maxLength={200}
               />
             </div>
 

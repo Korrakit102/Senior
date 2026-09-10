@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Role, StockRow, ItemStatus, Category } from "./types";
 import {
   filterStockRows,
+  getFilteredStockStatusParts,
   getNextStockId,
   getStockStats,
   exportStockToExcel,
@@ -23,7 +24,7 @@ import ReceiveStockModal from "./modals/ReceiveStockModal";
 type Props = {
   role: Role;
   stockData: StockRow[];
-  onStockChange: (updater: any) => void;
+  onStockChange: (updater: StockRow[] | ((prev: StockRow[]) => StockRow[])) => void;
   onStockReload: () => Promise<void>;
 };
 
@@ -47,6 +48,22 @@ export default function StockPage({
   const rows = useMemo(
     () => filterStockRows(stockData, q, status, category),
     [stockData, q, status, category]
+  );
+  const displayRowCount = useMemo(
+    () =>
+      rows.reduce(
+        (total, row) => total + getFilteredStockStatusParts(row, status).length,
+        0
+      ),
+    [rows, status]
+  );
+  const totalDisplayRowCount = useMemo(
+    () =>
+      stockData.reduce(
+        (total, row) => total + getFilteredStockStatusParts(row, "ทั้งหมด").length,
+        0
+      ),
+    [stockData]
   );
 
   // stats
@@ -134,13 +151,14 @@ export default function StockPage({
         onQChange={setQ}
         onStatusChange={setStatus}
         onCategoryChange={setCategory}
-        showing={rows.length}
-        total={stockData.length}
+        showing={displayRowCount}
+        total={totalDisplayRowCount}
       />
 
       {/* table */}
       <StockTable
         rows={rows}
+        statusFilter={status}
         showEdit={role !== "SA"}
         showDelete={role === "Manager"}
         onView={setDetailItem}

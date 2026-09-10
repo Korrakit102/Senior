@@ -9,9 +9,15 @@ type Props = {
   rows: DamageRow[];
   onExport: () => void;
   onOpenInvoice: (row: DamageRow) => void;
+  canIssueInvoice?: boolean;
 };
 
-export default function DamageReportSection({ rows, onExport, onOpenInvoice }: Props) {
+export default function DamageReportSection({
+  rows,
+  onExport,
+  onOpenInvoice,
+  canIssueInvoice = true,
+}: Props) {
   return (
     <ReportsCard
       title="รายงานความเสียหาย"
@@ -42,7 +48,9 @@ export default function DamageReportSection({ rows, onExport, onOpenInvoice }: P
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
                 <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
-                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
+                {canIssueInvoice && (
+                  <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
@@ -70,28 +78,30 @@ export default function DamageReportSection({ rows, onExport, onOpenInvoice }: P
                         {row.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว"}
                       </span>
                     </td>
-                    <td className="py-3 pl-4">
-                      <div className="relative group inline-flex">
-                        <button
-                          onClick={hasBreakdown ? () => onOpenInvoice(row) : undefined}
-                          disabled={!hasBreakdown}
-                          className={
-                            hasBreakdown
-                              ? "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
-                              : "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed select-none"
-                          }
-                        >
-                          <FilePlus className={`h-4 w-4 ${hasBreakdown ? "text-zinc-500" : "text-zinc-300"}`} />
-                          ออกใบแจ้งหนี้
-                        </button>
-                        {!hasBreakdown && (
-                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
-                            ไม่มีข้อมูลมูลค่าความเสียหาย
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                    {canIssueInvoice && (
+                      <td className="py-3 pl-4">
+                        <div className="relative group inline-flex">
+                          <button
+                            onClick={hasBreakdown ? () => onOpenInvoice(row) : undefined}
+                            disabled={!hasBreakdown}
+                            className={
+                              hasBreakdown
+                                ? "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+                                : "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed select-none"
+                            }
+                          >
+                            <FilePlus className={`h-4 w-4 ${hasBreakdown ? "text-zinc-500" : "text-zinc-300"}`} />
+                            ออกใบแจ้งหนี้
+                          </button>
+                          {!hasBreakdown && (
+                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
+                              ไม่มีข้อมูลมูลค่าความเสียหาย
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

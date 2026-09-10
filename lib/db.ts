@@ -126,6 +126,17 @@ export type DamageItemRow = {
   created_at: string;
 };
 
+// รูปแบบประวัติแจ้งซ่อมที่อ้างอิงจาก damage_items สำหรับแสดงในรายละเอียดสต็อก
+export type RepairingHistoryRow = {
+  id: string;
+  stock_id: string;
+  stock_code: string;
+  stock_name: string;
+  quantity: number;
+  event_id: string | null;
+  created_at: string;
+};
+
 // รูปแบบประวัติการรับเข้าสต็อกที่อ่านจากตาราง stock_receipts
 export type StockReceiptRow = {
   id: string;
@@ -835,14 +846,35 @@ export async function deleteEventById(id: string) {
   }
 }
 
-// ดึงข้อมูลอุปกรณ์ทั้งหมดในคลังจาก stock_items
+// ดึงข้อมูลอุปกรณ์ทั้งหมดในคลัง โดยให้จำนวนซ่อมแซมอิงจากรายการแจ้งซ่อมใน damage_items
 export async function listStockItems(): Promise<StockRowDb[]> {
   const client = await pool.connect();
   try {
     await ensureStockTable(client);
+    await ensureDamageItemsTable(client);
     const res: QueryResult<StockRowDb> = await client.query(
-      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
-       FROM stock_items ORDER BY id ASC`
+      `SELECT
+         s.id,
+         s.code,
+         s.name,
+         s.brand,
+         s.category,
+         s.system,
+         s.zone,
+         s.status,
+         s.qty,
+         s.available,
+         s.price_per_day,
+         s.cost,
+         COALESCE(d.repairing, 0)::int AS repairing
+       FROM stock_items s
+       LEFT JOIN (
+         SELECT item_name, COALESCE(SUM(qty), 0)::int AS repairing
+         FROM damage_items
+         WHERE status = 'reported'
+         GROUP BY item_name
+       ) d ON LOWER(TRIM(d.item_name)) = LOWER(TRIM(s.name))
+       ORDER BY s.id ASC`
     );
     return res.rows;
   } finally {
@@ -1025,25 +1057,50 @@ export async function adjustStock(
           }
         }
       } else {
-        // damage: these units were already deducted from available when issued to the event —
-        // they move from "in use" into "repairing" without ever passing back through available
-        const res = await client.query<StockRowDb & { old_repairing: number }>(
-          `WITH old_row AS (SELECT repairing FROM stock_items WHERE name = $1),
-           upd AS (
-             UPDATE stock_items
-             SET
-               repairing = repairing + $2::int,
-               status = CASE WHEN available = 0 AND repairing + $2::int > 0 THEN 'ซ่อมแซม' ELSE status END
+        // ของเสียหายถูกตัดออกจากจำนวนสต็อกใช้งานจริง แต่ยังเพิ่ม repairing เพื่อเก็บประวัติแจ้งซ่อม
+        const res = await client.query<
+          StockRowDb & {
+            old_qty: number;
+            old_repairing: number;
+            damaged_qty: number;
+          }
+        >(
+          `WITH current_row AS (
+             SELECT qty, available, repairing
+             FROM stock_items
              WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+           ),
+           calc AS (
+             SELECT
+               qty AS old_qty,
+               repairing AS old_repairing,
+               LEAST($2::int, GREATEST(0, qty - available)) AS damaged_qty
+             FROM current_row
+           ),
+           upd AS (
+             UPDATE stock_items AS s
+             SET
+               qty = s.qty - calc.damaged_qty,
+               repairing = s.repairing + calc.damaged_qty,
+               status = CASE
+                 WHEN s.available > 0 THEN 'พร้อมใช้'
+                 WHEN s.qty - calc.damaged_qty <= 0 AND s.repairing + calc.damaged_qty > 0 THEN 'ซ่อมแซม'
+                 ELSE s.status
+               END
+             FROM calc
+             WHERE s.name = $1
+             RETURNING s.id, s.code, s.name, s.brand, s.category, s.system, s.zone, s.status, s.qty, s.available, s.price_per_day, s.cost, s.repairing
            )
-           SELECT upd.*, old_row.repairing AS old_repairing FROM upd, old_row`,
+           SELECT upd.*, calc.old_qty, calc.old_repairing, calc.damaged_qty FROM upd, calc`,
           [item.name, item.qty]
         );
         if (res.rows.length > 0) {
           const row = res.rows[0];
           results.push(row);
-          if (row.old_repairing !== row.repairing) {
+          if (row.damaged_qty > 0 && row.old_qty !== row.qty) {
+            await insertStockHistory(client, row.id, row.code, row.name, "qty", row.old_qty, row.qty, createdAt, eventId);
+          }
+          if (row.damaged_qty > 0 && row.old_repairing !== row.repairing) {
             await insertStockHistory(client, row.id, row.code, row.name, "repairing", row.old_repairing, row.repairing, createdAt, eventId);
           }
         }
@@ -1172,18 +1229,28 @@ export async function listStockHistory(limit = 100): Promise<StockHistoryRow[]> 
   }
 }
 
-// ดึงประวัติการแจ้งซ่อมของอุปกรณ์ตัวเดียว (การเพิ่มจำนวน repairing ทุกครั้ง) เรียงจากล่าสุดไปเก่าสุด — ใช้แสดงใน StockDetailModal
+// ดึงประวัติการแจ้งซ่อมของอุปกรณ์ตัวเดียวจาก damage_items เรียงจากล่าสุดไปเก่าสุด — ใช้แสดงใน StockDetailModal
 export async function listRepairingHistoryByStockId(
   stockId: string
-): Promise<StockHistoryRow[]> {
+): Promise<RepairingHistoryRow[]> {
   const client = await pool.connect();
   try {
-    await ensureStockHistoryTable(client);
-    const res: QueryResult<StockHistoryRow> = await client.query(
-      `SELECT id, stock_id, stock_code, stock_name, field_name, change_type, old_value, new_value, delta, event_id, created_at
-       FROM stock_history
-       WHERE stock_id = $1 AND field_name = 'repairing' AND change_type = 'increase'
-       ORDER BY created_at DESC`,
+    await ensureStockTable(client);
+    await ensureDamageItemsTable(client);
+    const res: QueryResult<RepairingHistoryRow> = await client.query(
+      `SELECT
+         d.id,
+         s.id AS stock_id,
+         s.code AS stock_code,
+         s.name AS stock_name,
+         COALESCE(d.qty, 0)::int AS quantity,
+         d.event_id,
+         d.created_at
+       FROM stock_items s
+       JOIN damage_items d
+         ON LOWER(TRIM(d.item_name)) = LOWER(TRIM(s.name))
+       WHERE s.id = $1 AND d.status = 'reported'
+       ORDER BY d.created_at DESC`,
       [stockId]
     );
     return res.rows;

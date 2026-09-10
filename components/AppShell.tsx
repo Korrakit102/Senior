@@ -459,7 +459,7 @@ export default function AppShell() {
       });
       if (!res.ok) throw new Error("adjust failed");
       const { items: updated } = (await res.json()) as {
-        items: Array<{ id: string; available: number; status: string; repairing: number }>;
+        items: Array<{ id: string; qty: number; available: number; status: string; repairing: number }>;
       };
       setStockData((prev) =>
         prev.map((row) => {
@@ -467,6 +467,7 @@ export default function AppShell() {
           if (!found) return row;
           return {
             ...row,
+            qty: found.qty,
             available: found.available,
             status: toItemStatus(found.status),
             repairing: found.repairing,

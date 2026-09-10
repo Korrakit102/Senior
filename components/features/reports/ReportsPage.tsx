@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { FileText } from "lucide-react";
 import type { Role } from "../../AppShell";
 import type {
   AppStock,
@@ -23,7 +22,6 @@ import {
   filterDocsRows,
   filterEventRows,
   filterStockRows,
-  getDocStats,
   getSearchPlaceholder,
   mapStockRows,
 } from "./helpers";
@@ -31,7 +29,6 @@ import {
 import ReportsHeader from "./components/ReportsHeader";
 import ReportsTabs from "./components/ReportsTabs";
 import ReportsSearchBar from "./components/ReportsSearchBar";
-import ReportsSummaryCard from "./components/ReportsSummaryCard";
 
 import FinanceReportSection from "./components/FinanceReportSection";
 import StockReportSection from "./components/StockReportSection";
@@ -123,6 +120,7 @@ type Props = {
 };
 
 export default function ReportsPage({ role, stockData, extraDamageRows }: Props) {
+  const canIssueDamageInvoice = role !== "Stockkeeper";
   const [tab, setTab] = useState<ReportTab>(
     role === "Stockkeeper" ? "stock" : "finance"
   );
@@ -145,6 +143,13 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [hiddenEventDocIds, setHiddenEventDocIds] = useState<Set<string>>(
     () => new Set()
   );
+
+  useEffect(() => {
+    if (!canIssueDamageInvoice) {
+      setDamageInvoiceRow(null);
+      setEditDamageRow(null);
+    }
+  }, [canIssueDamageInvoice]);
 
   const [docsRows, setDocsRows] = useState<DocRow[]>([
     {
@@ -444,7 +449,6 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     [allDocsRows, query, docCategory, docSort]
   );
 
-  const docStats = useMemo(() => getDocStats(allDocsRows), [allDocsRows]);
   const searchPlaceholder = useMemo(() => getSearchPlaceholder(tab), [tab]);
 
   const handleExportStock = () => {
@@ -532,19 +536,31 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     setDeleteDoc(null);
   };
 
+  const canOpenEventDocument = (
+    event: EventReportRow | undefined
+  ): event is EventReportRow =>
+    event !== undefined && event.status.text !== "รออนุมัติ";
+
   const onOpenInvoice = (id: string) => {
-    setInvoiceEvent(eventReportRows.find((r) => r.id === id) ?? null);
+    const event = eventReportRows.find((r) => r.id === id);
+    if (!canOpenEventDocument(event)) return;
+    setInvoiceEvent(event);
   };
 
   const onOpenQuotation = (id: string) => {
-    setQuotationEvent(eventReportRows.find((r) => r.id === id) ?? null);
+    const event = eventReportRows.find((r) => r.id === id);
+    if (!canOpenEventDocument(event)) return;
+    setQuotationEvent(event);
   };
 
   const onOpenWorkOrder = (id: string) => {
-    setWorkOrderEvent(eventReportRows.find((r) => r.id === id) ?? null);
+    const event = eventReportRows.find((r) => r.id === id);
+    if (!canOpenEventDocument(event)) return;
+    setWorkOrderEvent(event);
   };
 
   const onOpenDamageInvoice = (row: DamageRow) => {
+    if (!canIssueDamageInvoice) return;
     setDamageInvoiceRow(row);
   };
 
@@ -553,6 +569,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     : null;
 
   const onOpenDamageEdit = (row: DamageRow) => {
+    if (!canIssueDamageInvoice) return;
     setEditDamageRow(row);
   };
 
@@ -592,47 +609,6 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       <ReportsHeader />
 
       <ReportsTabs tab={tab} onChange={setTab} role={role} />
-
-      {tab === "docs" && (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.total}
-            label="ทั้งหมด"
-            tone="blue"
-          />
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.invoice}
-            label="ใบแจ้งหนี้"
-            tone="emerald"
-          />
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.quotation}
-            label="ใบเสนอราคา"
-            tone="blue"
-          />
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.workorder}
-            label="ใบสั่งงาน"
-            tone="violet"
-          />
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.receipt}
-            label="ใบเสร็จ"
-            tone="amber"
-          />
-          <ReportsSummaryCard
-            icon={<FileText className="h-5 w-5" />}
-            value={docStats.other}
-            label="อื่นๆ"
-            tone="orange"
-          />
-        </div>
-      )}
 
       <ReportsSearchBar
         tab={tab}
@@ -674,6 +650,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
             rows={filteredDamage}
             onExport={handleExportDamage}
             onOpenInvoice={onOpenDamageInvoice}
+            canIssueInvoice={canIssueDamageInvoice}
           />
         )}
         {tab === "docs" && (
@@ -719,7 +696,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       />
 
       <DamageInvoiceModal
-        open={damageInvoiceRow !== null}
+        open={canIssueDamageInvoice && damageInvoiceRow !== null}
         damageRow={damageInvoiceRow}
         event={damageInvoiceEvent}
         onClose={() => setDamageInvoiceRow(null)}
@@ -727,7 +704,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
       />
 
       <EditDamageAmountModal
-        open={editDamageRow !== null}
+        open={canIssueDamageInvoice && editDamageRow !== null}
         damageRow={editDamageRow}
         onClose={() => setEditDamageRow(null)}
         onSave={onSaveDamageEdit}

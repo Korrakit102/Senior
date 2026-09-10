@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       stockId: r.stock_id,
       stockCode: r.stock_code,
       stockName: r.stock_name,
-      quantity: r.delta,
+      quantity: r.quantity,
       eventId: r.event_id,
       createdAt: r.created_at,
     }))

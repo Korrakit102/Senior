@@ -10,14 +10,52 @@ export function getStatusTone(status: ItemStatus): "green" | "blue" | "amber" {
   return "amber";
 }
 
-// สถานะหลักที่ควรแสดงบน badge โดยพิจารณาจากจำนวนพร้อมใช้/กำลังซ่อมจริง แทนการอ่าน field status ดิบตรงๆ:
-// - พร้อมใช้ > 0 → "พร้อมใช้" (ยังเบิกได้ แม้จะมีบางส่วนซ่อมอยู่ก็ตาม)
-// - พร้อมใช้ = 0 และมีของกำลังซ่อม → "ซ่อมแซม"
-// - พร้อมใช้ = 0 และไม่มีของซ่อม (ถูกเบิกไปใช้อีเวนต์ทั้งหมด) → "ใช้งานอยู่"
+// สถานะหลักดูจากจำนวนพร้อมใช้ก่อน ส่วนรายการซ่อมแซมจะแสดงเป็น badge เพิ่มในตาราง
+// qty คือจำนวนสต็อกที่ยังใช้งานได้จริง ส่วน repairing คือจำนวนที่ถูกแจ้งซ่อมและถูกตัดออกจาก qty แล้ว
 export function getDisplayStatus(row: StockRow): ItemStatus {
   if (row.available > 0) return "พร้อมใช้";
   if (row.repairing > 0) return "ซ่อมแซม";
   return "ใช้งานอยู่";
+}
+
+export type StockStatusPart = {
+  status: ItemStatus;
+  qty: number;
+  label: string;
+};
+
+export function getStockStatusParts(row: StockRow): StockStatusPart[] {
+  const parts: StockStatusPart[] = [];
+  const inUseQty = Math.max(0, row.qty - row.available);
+
+  if (row.available > 0) {
+    parts.push({ status: "พร้อมใช้", qty: row.available, label: "พร้อมใช้" });
+  }
+
+  if (inUseQty > 0) {
+    parts.push({ status: "ใช้งานอยู่", qty: inUseQty, label: "ใช้งานอยู่" });
+  }
+
+  if (row.repairing > 0) {
+    parts.push({ status: "ซ่อมแซม", qty: row.repairing, label: "แจ้งซ่อมแซม" });
+  }
+
+  if (parts.length === 0) {
+    const fallbackStatus = getDisplayStatus(row);
+    parts.push({ status: fallbackStatus, qty: 0, label: fallbackStatus });
+  }
+
+  return parts;
+}
+
+export function getFilteredStockStatusParts(
+  row: StockRow,
+  status: "ทั้งหมด" | ItemStatus
+) {
+  const parts = getStockStatusParts(row);
+  return status === "ทั้งหมด"
+    ? parts
+    : parts.filter((part) => part.status === status);
 }
 
 export function getCategoryTone(category: Category): "amber" | "zinc" {
@@ -55,9 +93,7 @@ export function filterStockRows(
         x.toLowerCase().includes(q.toLowerCase())
       );
 
-    const hitStatus =
-      status === "ทั้งหมด" ||
-      (status === "ซ่อมแซม" ? r.repairing > 0 : getDisplayStatus(r) === status);
+    const hitStatus = getFilteredStockStatusParts(r, status).length > 0;
 
     return (
       hitQ &&
@@ -71,7 +107,7 @@ export function getStockStats(stockData: StockRow[]) {
   return {
     total: stockData.reduce((s, r) => s + r.qty, 0),
     ready: stockData.reduce((s, r) => s + r.available, 0),
-    inUse: stockData.reduce((s, r) => s + (r.qty - r.available), 0),
+    inUse: stockData.reduce((s, r) => s + Math.max(0, r.qty - r.available), 0),
     repair: stockData.reduce((s, r) => s + r.repairing, 0),
   };
 }
@@ -106,7 +142,7 @@ export function exportStockToExcel(rows: StockRow[]) {
           r.status,
           r.qty,
           r.available,
-          r.qty - r.available,
+          Math.max(0, r.qty - r.available),
           r.pricePerDay,
           r.cost,
         ]),

@@ -238,7 +238,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-violet-600">
-                    {fmt(Math.max(0, item.qty - item.available - item.repairing))}
+                    {fmt(Math.max(0, item.qty - item.available))}
                   </div>
                   <div className="text-xs text-zinc-500">ใช้งานอยู่ในอีเวนต์</div>
                 </div>

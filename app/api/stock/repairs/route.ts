@@ -1,7 +1,7 @@
 "use server";
 
 import { NextRequest, NextResponse } from "next/server";
-import { listRepairingHistoryByStockId } from "@/lib/db";
+import { listRepairingHistoryByStockId, resolveRepairingStock } from "@/lib/db";
 
 // ดึงประวัติการแจ้งซ่อมของอุปกรณ์ตัวเดียว ใช้แสดงใน StockDetailModal
 export async function GET(req: NextRequest) {
@@ -22,4 +22,52 @@ export async function GET(req: NextRequest) {
       createdAt: r.created_at,
     }))
   );
+}
+
+// คืน (ซ่อมเสร็จ กลับเป็นพร้อมใช้) หรือจำหน่ายทิ้งถาวร (ซ่อมไม่ได้) จากล็อตที่ระบุใน damage_items โดยตรง
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+
+  const damageItemId = body?.damageItemId;
+  const quantity = body?.quantity;
+  const action = body?.action;
+
+  const valid =
+    typeof damageItemId === "string" && damageItemId.trim().length > 0 &&
+    typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0 &&
+    (action === "return" || action === "dispose");
+
+  if (!valid) {
+    return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  try {
+    const updated = await resolveRepairingStock({ damageItemId, quantity, action });
+
+    return NextResponse.json({
+      item: {
+        id: updated.id,
+        code: updated.code,
+        name: updated.name,
+        brand: updated.brand,
+        category: updated.category,
+        system: updated.system,
+        zone: updated.zone,
+        status: updated.status,
+        qty: updated.qty,
+        available: updated.available,
+        pricePerDay: updated.price_per_day,
+        cost: updated.cost,
+        repairing: updated.repairing,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.message === "stock item not found" || err.message === "damage lot not found")) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof Error && (err.message === "invalid quantity" || err.message === "damage lot already resolved")) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "failed to resolve repairing stock" }, { status: 500 });
+  }
 }

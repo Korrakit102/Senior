@@ -104,7 +104,7 @@ export type StockHistoryRow = {
   stock_code: string;
   stock_name: string;
   field_name: string;
-  change_type: "increase" | "decrease";
+  change_type: "increase" | "decrease" | "repaired_return" | "disposed";
   old_value: number;
   new_value: number;
   delta: number;
@@ -919,7 +919,8 @@ async function insertStockHistory(
   oldValue: number,
   newValue: number,
   createdAt: string,
-  eventId?: string
+  eventId?: string,
+  changeTypeOverride?: "repaired_return" | "disposed"
 ) {
   const delta = newValue - oldValue;
   await client.query(
@@ -929,7 +930,7 @@ async function insertStockHistory(
       `STH-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
       stockId, stockCode, stockName,
       fieldLabel,
-      delta > 0 ? "increase" : "decrease",
+      changeTypeOverride ?? (delta > 0 ? "increase" : "decrease"),
       oldValue, newValue, delta,
       eventId ?? null,
       createdAt,
@@ -1181,6 +1182,178 @@ export async function receiveStock(payload: {
     }
     if (prevAvgCost !== roundedAvgCost) {
       await insertStockHistory(client, current.id, current.code, current.name, "cost", prevAvgCost, roundedAvgCost, createdAt);
+    }
+
+    await client.query("COMMIT");
+    return updated;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// รูปแบบล็อตที่กำลังซ่อม (1 record ใน damage_items ที่ status = 'reported') — ใช้แสดงในหน้าจำหน่ายสต็อก
+export type RepairLotRow = {
+  id: string;
+  stock_id: string;
+  stock_code: string;
+  stock_name: string;
+  event_id: string | null;
+  event_date: string;
+  qty: number;
+  created_at: string;
+};
+
+// ดึงล็อตที่กำลังซ่อม (damage_items ที่ status = 'reported') ทั้งหมด แยกเป็นรายการต่อ record ไม่รวมยอด
+export async function listReportedRepairLots(): Promise<RepairLotRow[]> {
+  const client = await pool.connect();
+  try {
+    await ensureStockTable(client);
+    await ensureDamageItemsTable(client);
+    const res: QueryResult<RepairLotRow> = await client.query(
+      `SELECT
+         d.id,
+         s.id AS stock_id,
+         s.code AS stock_code,
+         s.name AS stock_name,
+         d.event_id,
+         d.event_date,
+         COALESCE(d.qty, 0)::int AS qty,
+         d.created_at
+       FROM damage_items d
+       JOIN stock_items s ON LOWER(TRIM(d.item_name)) = LOWER(TRIM(s.name))
+       WHERE d.status = 'reported'
+       ORDER BY d.created_at ASC`
+    );
+    return res.rows;
+  } finally {
+    client.release();
+  }
+}
+
+// จำหน่ายสต็อก: คืน (ซ่อมเสร็จ) หรือจำหน่ายทิ้งถาวร (ซ่อมไม่ได้) จากล็อตที่ระบุใน damage_items โดยตรง (1 record = 1 ล็อต)
+// ถ้าจำนวนที่ขอน้อยกว่าที่รายงานไว้ในล็อตนั้น จะแตก row เดิมออกเพื่อคง event_id/cost ของส่วนที่เหลือไว้ถูกต้อง
+export async function resolveRepairingStock(payload: {
+  damageItemId: string;
+  quantity: number;
+  action: "return" | "dispose";
+}): Promise<StockRowDb> {
+  const client = await pool.connect();
+  try {
+    await ensureStockTable(client);
+    await ensureStockHistoryTable(client);
+    await ensureDamageItemsTable(client);
+    await client.query("BEGIN");
+
+    const lotRes = await client.query<{
+      id: string;
+      item_name: string;
+      code: string;
+      event_date: string;
+      event_id: string | null;
+      qty: number;
+      cost: number;
+      billed_cost: number | null;
+      status: string;
+    }>(
+      `SELECT id, item_name, code, event_date, event_id, COALESCE(qty, 0)::int AS qty, cost, billed_cost, status
+       FROM damage_items WHERE id = $1 FOR UPDATE`,
+      [payload.damageItemId]
+    );
+    const lot = lotRes.rows[0];
+    if (!lot) {
+      await client.query("ROLLBACK");
+      throw new Error("damage lot not found");
+    }
+    if (lot.status !== "reported") {
+      await client.query("ROLLBACK");
+      throw new Error("damage lot already resolved");
+    }
+    if (!Number.isFinite(payload.quantity) || payload.quantity <= 0 || payload.quantity > lot.qty) {
+      await client.query("ROLLBACK");
+      throw new Error("invalid quantity");
+    }
+
+    const currentRes = await client.query<StockRowDb>(
+      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+       FROM stock_items WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) FOR UPDATE`,
+      [lot.item_name]
+    );
+    const current = currentRes.rows[0];
+    if (!current) {
+      await client.query("ROLLBACK");
+      throw new Error("stock item not found");
+    }
+
+    const resolvedStatus = payload.action === "return" ? "returned" : "disposed";
+
+    if (payload.quantity >= lot.qty) {
+      await client.query(`UPDATE damage_items SET status = $2 WHERE id = $1`, [lot.id, resolvedStatus]);
+    } else {
+      const portion = payload.quantity / lot.qty;
+      const portionCost = Math.round(lot.cost * portion);
+      const portionBilled = lot.billed_cost == null ? null : Math.round(lot.billed_cost * portion);
+      const splitId = `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+
+      await client.query(
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
+        [splitId, lot.event_id, lot.item_name, lot.code, lot.event_date, payload.quantity, portionCost, portionBilled, resolvedStatus]
+      );
+      await client.query(
+        `UPDATE damage_items
+         SET qty = qty - $2,
+             cost = cost - $3,
+             billed_cost = CASE WHEN billed_cost IS NULL THEN NULL ELSE billed_cost - $4 END
+         WHERE id = $1`,
+        [lot.id, payload.quantity, portionCost, portionBilled ?? 0]
+      );
+    }
+
+    const createdAt = new Date().toISOString();
+    const eventId = lot.event_id ?? undefined;
+    let updated: StockRowDb;
+
+    if (payload.action === "return") {
+      // ซ่อมเสร็จแล้ว: คืนจำนวนกลับเข้า qty และ available ตามที่เคยถูกหักออกตอนแจ้งซ่อม
+      const newQty = current.qty + payload.quantity;
+      const newAvailable = current.available + payload.quantity;
+      const newRepairing = Math.max(0, current.repairing - payload.quantity);
+      const newStatus = newAvailable > 0 ? "พร้อมใช้" : newRepairing > 0 ? "ซ่อมแซม" : "ใช้งานอยู่";
+
+      const updRes = await client.query<StockRowDb>(
+        `UPDATE stock_items
+         SET qty = $2, available = $3, repairing = $4, status = $5
+         WHERE id = $1
+         RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
+        [current.id, newQty, newAvailable, newRepairing, newStatus]
+      );
+      updated = updRes.rows[0];
+
+      await insertStockHistory(client, current.id, current.code, current.name, "qty", current.qty, newQty, createdAt, eventId, "repaired_return");
+      await insertStockHistory(client, current.id, current.code, current.name, "available", current.available, newAvailable, createdAt, eventId, "repaired_return");
+      if (current.repairing !== newRepairing) {
+        await insertStockHistory(client, current.id, current.code, current.name, "repairing", current.repairing, newRepairing, createdAt, eventId, "repaired_return");
+      }
+    } else {
+      // ซ่อมไม่ได้: ตัดออกจาก repairing ถาวร ไม่แตะ qty เพราะถูกหักออกจากระบบไปแล้วตั้งแต่ตอนแจ้งซ่อม
+      const newRepairing = Math.max(0, current.repairing - payload.quantity);
+      const newStatus = current.available > 0 ? "พร้อมใช้" : newRepairing > 0 ? "ซ่อมแซม" : "ใช้งานอยู่";
+
+      const updRes = await client.query<StockRowDb>(
+        `UPDATE stock_items
+         SET repairing = $2, status = $3
+         WHERE id = $1
+         RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
+        [current.id, newRepairing, newStatus]
+      );
+      updated = updRes.rows[0];
+
+      if (current.repairing !== newRepairing) {
+        await insertStockHistory(client, current.id, current.code, current.name, "repairing", current.repairing, newRepairing, createdAt, eventId, "disposed");
+      }
     }
 
     await client.query("COMMIT");

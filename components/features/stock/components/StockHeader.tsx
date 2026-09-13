@@ -1,13 +1,14 @@
 import React from "react";
-import { Package, Download, Plus, PackagePlus } from "lucide-react";
+import { Package, Download, Plus, PackagePlus, PackageX } from "lucide-react";
 
 type Props = {
   onExport: () => void;
   onAdd: () => void;
   onReceiveStock: () => void;
+  onDisposeStock: () => void;
 };
 
-export default function StockHeader({ onExport, onAdd, onReceiveStock }: Props) {
+export default function StockHeader({ onExport, onAdd, onReceiveStock, onDisposeStock }: Props) {
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
       <div className="flex items-start gap-4">
@@ -40,6 +41,14 @@ export default function StockHeader({ onExport, onAdd, onReceiveStock }: Props) 
         >
           <PackagePlus className="h-4 w-4" />
           รับเข้าสต็อก
+        </button>
+
+        <button
+          onClick={onDisposeStock}
+          className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm hover:bg-zinc-50"
+        >
+          <PackageX className="h-4 w-4" />
+          จำหน่ายสต็อก
         </button>
 
         <button

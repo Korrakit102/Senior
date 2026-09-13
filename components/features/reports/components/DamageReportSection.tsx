@@ -56,6 +56,7 @@ export default function DamageReportSection({
             <tbody className="divide-y divide-zinc-50">
               {rows.map((row) => {
                 const hasBreakdown = row.qty != null && row.cost > 0;
+                const isDisposed = (row.status as string) === "disposed";
                 return (
                   <tr key={row.id} className="hover:bg-zinc-50/60">
                     <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
@@ -72,10 +73,12 @@ export default function DamageReportSection({
                         className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           row.status === "reported"
                             ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200"
-                            : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                            : isDisposed
+                              ? "bg-red-50 text-red-700 ring-1 ring-red-200"
+                              : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
                         }`}
                       >
-                        {row.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว"}
+                        {row.status === "reported" ? "แจ้งซ่อมแล้ว" : isDisposed ? "จำหน่ายแล้ว" : "ซ่อมแล้ว"}
                       </span>
                     </td>
                     {canIssueInvoice && (

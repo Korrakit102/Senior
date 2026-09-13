@@ -248,7 +248,11 @@ export function buildDamageExportData(rows: DamageRow[]) {
       d.code,
       d.date,
       d.cost,
-      d.status === "reported" ? "แจ้งซ่อมแล้ว" : "ซ่อมแล้ว",
+      d.status === "reported"
+        ? "แจ้งซ่อมแล้ว"
+        : (d.status as string) === "disposed"
+          ? "จำหน่ายแล้ว"
+          : "ซ่อมแล้ว",
     ]),
   ];
 }

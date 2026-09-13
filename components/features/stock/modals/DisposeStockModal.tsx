@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, PackageX, RotateCcw, Search, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, PackageX, RotateCcw, Search, X } from "lucide-react";
 import { fmt } from "../helpers";
 import StockPill from "../components/StockPill";
 
@@ -32,8 +32,9 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
   const [errorByLot, setErrorByLot] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
-  const loadLots = async () => {
+  const loadLots = async (): Promise<RepairLot[]> => {
     setLoading(true);
     setLoadError(null);
     try {
@@ -42,9 +43,11 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
       const rows = (await res.json()) as RepairLot[];
       setLots(rows);
       setQtyByLot(Object.fromEntries(rows.map((r) => [r.id, r.quantity])));
+      return rows;
     } catch {
       setLots([]);
       setLoadError("โหลดรายการที่กำลังซ่อมไม่สำเร็จ");
+      return [];
     } finally {
       setLoading(false);
     }
@@ -56,6 +59,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
     setErrorByLot({});
     setSuccessMessage(null);
     setSearchQuery("");
+    setSelectedGroup(null);
     loadLots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -76,6 +80,28 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
         lot.stockName.toLowerCase().includes(searchQuery.trim().toLowerCase())
       )
     : lots;
+
+  const groups = Array.from(
+    filteredLots
+      .reduce((map, lot) => {
+        const existing = map.get(lot.stockName);
+        if (existing) {
+          existing.lotCount += 1;
+          existing.totalQty += lot.quantity;
+        } else {
+          map.set(lot.stockName, {
+            stockName: lot.stockName,
+            stockCode: lot.stockCode,
+            lotCount: 1,
+            totalQty: lot.quantity,
+          });
+        }
+        return map;
+      }, new Map<string, { stockName: string; stockCode: string; lotCount: number; totalQty: number }>())
+      .values()
+  );
+
+  const groupLots = selectedGroup ? lots.filter((lot) => lot.stockName === selectedGroup) : [];
 
   const setQty = (id: string, value: number, max: number) => {
     const clamped = Math.max(1, Math.min(max, Math.round(value) || 1));
@@ -110,7 +136,10 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
           : `จำหน่าย "${lot.stockName}" จากงาน ${lot.eventId ?? "-"} จำนวน ${fmt(quantity)} ชิ้นออกจากระบบแล้ว`
       );
       await onResolved();
-      await loadLots();
+      const freshLots = await loadLots();
+      if (selectedGroup && !freshLots.some((l) => l.stockName === selectedGroup)) {
+        setSelectedGroup(null);
+      }
     } catch (err) {
       setErrorByLot((prev) => ({
         ...prev,
@@ -145,15 +174,27 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
           </div>
 
           <div className="px-5 pb-5 space-y-4">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="ค้นหาอุปกรณ์..."
-                className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
-              />
-            </div>
+            {selectedGroup === null ? (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ค้นหาอุปกรณ์..."
+                  className="h-10 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSelectedGroup(null)}
+                disabled={!!pendingKey}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                กลับ
+              </button>
+            )}
 
             {successMessage && (
               <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
@@ -181,15 +222,42 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
               </div>
             )}
 
-            {!loading && !loadError && lots.length > 0 && filteredLots.length === 0 && (
+            {!loading && !loadError && lots.length > 0 && selectedGroup === null && groups.length === 0 && (
               <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-center text-sm text-zinc-500">
                 ไม่พบอุปกรณ์ที่ค้นหา
               </div>
             )}
 
-            {!loading && !loadError && filteredLots.length > 0 && (
+            {!loading && !loadError && selectedGroup === null && groups.length > 0 && (
+              <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                {groups.map((group) => (
+                  <button
+                    key={group.stockName}
+                    type="button"
+                    onClick={() => setSelectedGroup(group.stockName)}
+                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4 text-left hover:bg-zinc-50"
+                  >
+                    <div>
+                      <div className="font-semibold text-zinc-900">{group.stockName}</div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <StockPill tone="blue">{group.stockCode}</StockPill>
+                        <span className="text-xs text-zinc-500">{group.lotCount} ล็อต</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-zinc-500">รวมกำลังซ่อมแซม</div>
+                      <div className="text-lg font-bold text-amber-600">
+                        รวม {fmt(group.totalQty)} ชิ้น
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!loading && !loadError && selectedGroup !== null && (
               <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-                {filteredLots.map((lot) => {
+                {groupLots.map((lot) => {
                   const qty = qtyByLot[lot.id] ?? lot.quantity;
                   const busyReturn = pendingKey === `${lot.id}-return`;
                   const busyDispose = pendingKey === `${lot.id}-dispose`;

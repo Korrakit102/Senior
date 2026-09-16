@@ -85,9 +85,17 @@ export default function DamageReportSection({
                             </a>
                           ))}
                           {row.photoPaths.length > 3 && (
-                            <span className="text-xs font-medium text-zinc-400">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                row.photoPaths!.slice(3).forEach((src) => {
+                                  window.open(src, "_blank", "noopener,noreferrer");
+                                });
+                              }}
+                              className="text-xs font-medium text-zinc-400 hover:text-zinc-600 hover:underline"
+                            >
                               +{row.photoPaths.length - 3}
-                            </span>
+                            </button>
                           )}
                         </div>
                       ) : (

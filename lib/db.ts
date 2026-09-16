@@ -124,6 +124,7 @@ export type DamageItemRow = {
   billed_cost: number | null;
   status: string;
   created_at: string;
+  photo_paths: string[] | null;
 };
 
 // รูปแบบประวัติแจ้งซ่อมที่อ้างอิงจาก damage_items สำหรับแสดงในรายละเอียดสต็อก
@@ -363,6 +364,11 @@ async function ensureDamageItemsTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE damage_items
       ADD COLUMN IF NOT EXISTS billed_cost INTEGER;
+    `);
+    // path รูปหลักฐานความเสียหายที่แนบตอนแจ้งซ่อม (หลายรูปต่อ 1 รายการ) — เก็บ path บนดิสก์ ไม่ใช่ base64
+    await c.query(`
+      ALTER TABLE damage_items
+      ADD COLUMN IF NOT EXISTS photo_paths TEXT[];
     `);
   } finally {
     if (!client) c.release();
@@ -1437,7 +1443,7 @@ export async function insertDamageItems(payload: {
   eventId: string;
   eventCode: string;
   eventDate: string;
-  items: Array<{ itemName: string; qty: number; cost: number }>;
+  items: Array<{ itemName: string; qty: number; cost: number; photoPaths?: string[] }>;
 }): Promise<void> {
   const client = await pool.connect();
   try {
@@ -1445,8 +1451,8 @@ export async function insertDamageItems(payload: {
     const createdAt = new Date().toISOString();
     for (const item of payload.items) {
       await client.query(
-        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, status, created_at, photo_paths)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
           payload.eventId,
@@ -1457,6 +1463,7 @@ export async function insertDamageItems(payload: {
           item.cost,
           "reported",
           createdAt,
+          item.photoPaths ?? [],
         ]
       );
     }
@@ -1471,7 +1478,7 @@ export async function listDamageItems(): Promise<DamageItemRow[]> {
   try {
     await ensureDamageItemsTable(client);
     const res: QueryResult<DamageItemRow> = await client.query(
-      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at
+      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at, photo_paths
        FROM damage_items ORDER BY created_at DESC`
     );
     return res.rows;

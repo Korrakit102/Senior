@@ -78,6 +78,7 @@ export type DamageRow = {
   cost: number;
   billedCost?: number | null;
   status: "reported" | "fixed";
+  photoPaths?: string[];
 };
 
 export type FinanceTopEvent = {

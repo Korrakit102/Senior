@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2, FilePlus } from "lucide-react";
+import { CheckCircle2, FilePlus, ImageOff } from "lucide-react";
 import type { DamageRow } from "../types";
 import ReportsCard from "./ReportsCard";
 import ReportsExportButton from "./ReportsExportButton";
@@ -47,6 +47,7 @@ export default function DamageReportSection({
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
+                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">รูปหลักฐาน</th>
                 <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
                 {canIssueInvoice && (
                   <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
@@ -67,6 +68,34 @@ export default function DamageReportSection({
                     </td>
                     <td className="py-3 text-right font-medium text-zinc-900">
                       {row.cost.toLocaleString("th-TH")}
+                    </td>
+                    <td className="py-3 pl-4">
+                      {row.photoPaths && row.photoPaths.length > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          {row.photoPaths.slice(0, 3).map((src, i) => (
+                            <a
+                              key={i}
+                              href={src}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block h-9 w-9 overflow-hidden rounded-lg border border-zinc-200"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={src} alt="" className="h-full w-full object-cover" />
+                            </a>
+                          ))}
+                          {row.photoPaths.length > 3 && (
+                            <span className="text-xs font-medium text-zinc-400">
+                              +{row.photoPaths.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+                          <ImageOff className="h-3.5 w-3.5" />
+                          ไม่มีรูป
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 pl-4">
                       <span

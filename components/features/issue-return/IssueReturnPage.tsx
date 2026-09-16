@@ -303,21 +303,21 @@ export default function IssueReturnPage({
         });
         onAddDamageRows(newRows);
 
-        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
-        fetch("/api/damage-items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId: confirmReturnEvent.id,
-            eventCode: confirmReturnEvent.code,
-            eventDate: confirmReturnEvent.eventDate,
-            items: newRows.map((r) => ({
-              itemName: r.itemName,
-              qty: r.qty,
-              cost: r.cost,
-            })),
-          }),
-        }).catch(() => undefined);
+        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร พร้อมรูปหลักฐานของแต่ละรายการ (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
+        const damageFormData = new FormData();
+        damageFormData.append("eventId", confirmReturnEvent.id);
+        damageFormData.append("eventCode", confirmReturnEvent.code);
+        damageFormData.append("eventDate", confirmReturnEvent.eventDate);
+        damageFormData.append(
+          "items",
+          JSON.stringify(newRows.map((r) => ({ itemName: r.itemName, qty: r.qty, cost: r.cost })))
+        );
+        damageFormData.append("photoCounts", JSON.stringify(damagedItems.map((i) => i.photos.length)));
+        damagedItems.forEach((item) => {
+          item.photos.forEach((file) => damageFormData.append("photos", file));
+        });
+
+        fetch("/api/damage-items", { method: "POST", body: damageFormData }).catch(() => undefined);
       }
 
       setEvents((prev) =>
@@ -441,21 +441,23 @@ export default function IssueReturnPage({
         });
         onAddDamageRows(newRows);
 
-        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
-        fetch("/api/damage-items", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            eventId,
-            eventCode: selectedEvent?.code ?? eventId,
-            eventDate: selectedEvent?.eventDate ?? "",
-            items: newRows.map((r) => ({
-              itemName: r.itemName,
-              qty: r.qty,
-              cost: r.cost,
-            })),
-          }),
-        }).catch(() => undefined);
+        // บันทึก breakdown ความเสียหายรายชิ้นลง DB แบบถาวร พร้อมรูปหลักฐาน (ไม่ใช่แค่ state ชั่วคราวในเบราว์เซอร์)
+        const damageFormData = new FormData();
+        damageFormData.append("eventId", eventId);
+        damageFormData.append("eventCode", selectedEvent?.code ?? eventId);
+        damageFormData.append("eventDate", selectedEvent?.eventDate ?? "");
+        damageFormData.append(
+          "items",
+          JSON.stringify(newRows.map((r) => ({ itemName: r.itemName, qty: r.qty, cost: r.cost })))
+        );
+        // คืนด่วนมีรูปหลักฐานชุดเดียวรวมทุกอุปกรณ์ (ไม่แยกต่อชิ้นเหมือนหน้าคืนปกติ) จึงผูกไว้กับรายการแรกรายการเดียว
+        damageFormData.append(
+          "photoCounts",
+          JSON.stringify(newRows.map((_, idx) => (idx === 0 ? photos.length : 0)))
+        );
+        photos.forEach((file) => damageFormData.append("photos", file));
+
+        fetch("/api/damage-items", { method: "POST", body: damageFormData }).catch(() => undefined);
       }
 
       setEquipmentByEvent((prev) => ({ ...prev, [eventId]: nextEquipment }));

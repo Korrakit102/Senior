@@ -390,12 +390,22 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   );
 
   const damageRows = useMemo<DamageRow[]>(() => {
-    // ลำดับความสำคัญ: rows ในเซสชันปัจจุบัน (instant feedback) > rows ที่บันทึกถาวรใน DB แล้ว > fallback ระดับอีเวนต์ (ไม่มี breakdown จริง)
+    // ลำดับความสำคัญ: persisted row จาก DB (มีข้อมูลจริงรวมรูปหลักฐาน) > row ในเซสชันปัจจุบัน (instant feedback ก่อนอัปโหลดเสร็จ) > fallback ระดับอีเวนต์ (ไม่มี breakdown จริง)
+    // match กันด้วย eventId + itemName (ไม่ใช้ id เพราะ row ในเซสชันปัจจุบันสร้าง id ฝั่ง client ที่ไม่ตรงกับ id จริงใน DB)
+    const rowKey = (r: DamageRow) => `${r.eventId ?? ""}::${r.itemName.trim().toLowerCase()}`;
+    const persistedByKey = new Map(persistedDamageRows.map((r) => [rowKey(r), r] as const));
+
+    // แทนที่ row ชั่วคราวด้วย row จาก DB ทันทีที่อัปโหลดเสร็จ (จะได้ photoPaths/id จริง) โดยไม่ทิ้งข้อมูลที่ยังอัปโหลดไม่เสร็จ
+    const mergedExtraRows: DamageRow[] = (extraDamageRows ?? []).map(
+      (r) => persistedByKey.get(rowKey(r)) ?? r
+    );
+    const usedPersistedKeys = new Set(mergedExtraRows.map(rowKey));
+
     const extraEventIds = new Set(
       (extraDamageRows ?? []).map((r) => r.eventId).filter(Boolean)
     );
     const persistedForOtherEvents = persistedDamageRows.filter(
-      (r) => !extraEventIds.has(r.eventId)
+      (r) => !usedPersistedKeys.has(rowKey(r))
     );
     const coveredEventIds = new Set([
       ...extraEventIds,
@@ -413,7 +423,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         status: "reported" as const,
       }));
     // ซ่อนแถว fallback ที่ไม่มี breakdown รายชิ้นจริง (qty ไม่มีค่า และมูลค่า = 0) ออกจากรายงาน
-    return [...(extraDamageRows ?? []), ...persistedForOtherEvents, ...apiRows].filter(
+    return [...mergedExtraRows, ...persistedForOtherEvents, ...apiRows].filter(
       (r) => r.qty != null && r.cost > 0
     );
   }, [eventReportRows, extraDamageRows, persistedDamageRows]);

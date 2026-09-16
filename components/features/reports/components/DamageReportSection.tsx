@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { CheckCircle2, FilePlus, ImageOff } from "lucide-react";
 import type { DamageRow } from "../types";
 import ReportsCard from "./ReportsCard";
 import ReportsExportButton from "./ReportsExportButton";
+import DamagePhotoModal from "../modals/DamagePhotoModal";
 import { fmtDateRangeThai } from "../../events/helpers";
 
 type Props = {
@@ -18,6 +19,8 @@ export default function DamageReportSection({
   onOpenInvoice,
   canIssueInvoice = true,
 }: Props) {
+  const [photoModalRow, setPhotoModalRow] = useState<DamageRow | null>(null);
+
   return (
     <ReportsCard
       title="รายงานความเสียหาย"
@@ -73,25 +76,20 @@ export default function DamageReportSection({
                       {row.photoPaths && row.photoPaths.length > 0 ? (
                         <div className="flex items-center gap-1.5">
                           {row.photoPaths.slice(0, 3).map((src, i) => (
-                            <a
+                            <button
                               key={i}
-                              href={src}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block h-9 w-9 overflow-hidden rounded-lg border border-zinc-200"
+                              type="button"
+                              onClick={() => setPhotoModalRow(row)}
+                              className="block h-9 w-9 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80"
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={src} alt="" className="h-full w-full object-cover" />
-                            </a>
+                            </button>
                           ))}
                           {row.photoPaths.length > 3 && (
                             <button
                               type="button"
-                              onClick={() => {
-                                row.photoPaths!.slice(3).forEach((src) => {
-                                  window.open(src, "_blank", "noopener,noreferrer");
-                                });
-                              }}
+                              onClick={() => setPhotoModalRow(row)}
                               className="text-xs font-medium text-zinc-400 hover:text-zinc-600 hover:underline"
                             >
                               +{row.photoPaths.length - 3}
@@ -149,6 +147,13 @@ export default function DamageReportSection({
           </table>
         </div>
       )}
+
+      <DamagePhotoModal
+        open={photoModalRow !== null}
+        itemName={photoModalRow?.itemName ?? ""}
+        photos={photoModalRow?.photoPaths ?? []}
+        onClose={() => setPhotoModalRow(null)}
+      />
     </ReportsCard>
   );
 }

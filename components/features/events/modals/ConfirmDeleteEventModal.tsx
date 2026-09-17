@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Trash2, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Props = {
   open: boolean;
@@ -16,6 +17,8 @@ export default function ConfirmDeleteEventModal({
   onConfirm,
   onCancel,
 }: Props) {
+  useBodyScrollLock(open);
+
   React.useEffect(() => {
     if (!open) return;
 

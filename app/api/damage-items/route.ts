@@ -16,6 +16,7 @@ export async function GET() {
       qty: r.qty,
       cost: r.cost,
       billedCost: r.billed_cost,
+      resolvedCodes: r.resolved_codes,
       status: r.status,
     }))
   );

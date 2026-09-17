@@ -107,7 +107,7 @@ export function filterDamageRows(rows: DamageRow[], query: string) {
   if (!s) return rows;
 
   return rows.filter((d) =>
-    [d.itemName, d.code, d.eventId ?? ""].some((v) =>
+    [d.itemName, d.code, d.eventId ?? "", d.resolvedCodes ?? ""].some((v) =>
       v.toLowerCase().includes(s)
     )
   );
@@ -241,13 +241,15 @@ export function buildFinanceExportData(
 
 export function buildDamageExportData(rows: DamageRow[]) {
   return [
-    ["รหัส", "ชื่ออีเวนต์", "รหัสอุปกรณ์", "วันที่", "มูลค่าอุปกรณ์ (฿)", "สถานะ"],
+    ["รหัส", "ชื่ออีเวนต์", "รหัสอุปกรณ์", "รหัสที่ดำเนินการ", "วันที่", "มูลค่าอุปกรณ์ (฿)", "มูลค่าเรียกเก็บ (฿)", "สถานะ"],
     ...rows.map((d) => [
       d.id,
       d.itemName,
       d.code,
+      d.resolvedCodes ?? "",
       d.date,
       d.cost,
+      d.billedCost ?? d.cost,
       d.status === "reported"
         ? "แจ้งซ่อมแล้ว"
         : (d.status as string) === "disposed"

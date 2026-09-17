@@ -39,14 +39,16 @@ export default function DamageReportSection({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[1120px] w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100">
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">อุปกรณ์</th>
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัสอีเวนต์</th>
+                <th className="pb-3 text-left text-xs font-semibold text-zinc-500">รหัสที่ดำเนินการ</th>
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
+                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่าเรียกเก็บ (฿)</th>
                 <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
                 {canIssueInvoice && (
                   <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
@@ -55,18 +57,26 @@ export default function DamageReportSection({
             </thead>
             <tbody className="divide-y divide-zinc-50">
               {rows.map((row) => {
+                const billedCost = row.billedCost ?? row.cost;
                 const hasBreakdown = row.qty != null && row.cost > 0;
                 const isDisposed = (row.status as string) === "disposed";
+
                 return (
                   <tr key={row.id} className="hover:bg-zinc-50/60">
                     <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
                     <td className="py-3 text-zinc-500">{row.code}</td>
+                    <td className="max-w-[180px] whitespace-pre-wrap py-3 text-xs text-zinc-600">
+                      {row.resolvedCodes?.trim() || "-"}
+                    </td>
                     <td className="py-3 text-zinc-500">{fmtDateRangeThai(row.date)}</td>
                     <td className="py-3 text-right font-medium text-zinc-900">
                       {row.qty != null ? `${row.qty} ชิ้น` : "-"}
                     </td>
                     <td className="py-3 text-right font-medium text-zinc-900">
                       {row.cost.toLocaleString("th-TH")}
+                    </td>
+                    <td className="py-3 text-right font-medium text-zinc-900">
+                      {billedCost.toLocaleString("th-TH")}
                     </td>
                     <td className="py-3 pl-4">
                       <span
@@ -97,9 +107,9 @@ export default function DamageReportSection({
                             ออกใบแจ้งหนี้
                           </button>
                           {!hasBreakdown && (
-                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg group-hover:flex">
                               ไม่มีข้อมูลมูลค่าความเสียหาย
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
+                              <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
                             </div>
                           )}
                         </div>

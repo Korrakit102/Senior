@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventItem } from "../types";
 import EventStatusPill from "../components/EventStatusPill";
 import { fmtDateRangeThai } from "../helpers";
@@ -17,6 +18,8 @@ export default function CalendarDayEventsModal({
   events: EventItem[];
   onClose: () => void;
 }) {
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {

@@ -6,16 +6,13 @@ import {
   Camera,
   CheckCircle,
   CheckCircle2,
-  CornerDownLeft,
   Package2,
-  Plus,
   Upload,
   X,
 } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EquipmentItem, EventEquipmentItem, IssueEvent } from "../types";
-import { mergeEquipmentItems, removeEquipmentItem } from "../helpers";
 import CameraCaptureModal from "./CameraCaptureModal";
-import SelectEquipmentModal from "./SelectEquipmentModal";
 
 type Props = {
   open: boolean;
@@ -41,9 +38,10 @@ export default function QuickReturnModal({
   const [selectedEventId, setSelectedEventId] = useState("");
   const [isDamaged, setIsDamaged] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+
+  useBodyScrollLock(open);
 
   React.useEffect(() => {
     if (!open) {
@@ -59,19 +57,42 @@ export default function QuickReturnModal({
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isSelectOpen && !isCameraOpen) onClose();
+      if (e.key === "Escape" && !isCameraOpen) onClose();
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, isSelectOpen, isCameraOpen]);
+  }, [open, onClose, isCameraOpen]);
 
-  const addItem = (item: EquipmentItem) => {
-    setItems((prev) => mergeEquipmentItems(prev, item));
+  const selectedEventEquipment = useMemo(
+    () => (selectedEventId ? eventEquipmentById[selectedEventId] ?? [] : []),
+    [eventEquipmentById, selectedEventId]
+  );
+
+  const makeReturnItemId = (name: string) => `${selectedEventId}-${name}`;
+
+  const toggleReturnItem = (item: EventEquipmentItem, checked: boolean) => {
+    setItems((prev) => {
+      if (!checked) return prev.filter((selected) => selected.name !== item.name);
+      if (prev.some((selected) => selected.name === item.name)) return prev;
+      return [
+        ...prev,
+        {
+          id: makeReturnItemId(item.name),
+          name: item.name,
+          qty: item.qty,
+        },
+      ];
+    });
   };
 
-  const removeItem = (id: string) => {
-    setItems((prev) => removeEquipmentItem(prev, id));
+  const updateReturnQty = (item: EventEquipmentItem, value: string) => {
+    const qty = Math.min(item.qty, Math.max(1, Number(value) || 1));
+    setItems((prev) =>
+      prev.map((selected) =>
+        selected.name === item.name ? { ...selected, qty } : selected
+      )
+    );
   };
 
   const addPhotos = (files: FileList | null) => {
@@ -83,34 +104,6 @@ export default function QuickReturnModal({
     setPhotos((prev) => [...prev, file]);
   };
 
-  const selectedEventEquipment = selectedEventId
-    ? eventEquipmentById[selectedEventId] ?? []
-    : [];
-
-  const selectedEquipmentOptions = useMemo(
-    () =>
-      selectedEventEquipment.map((item) => ({
-        id: `${selectedEventId}-${item.name}`,
-        name: item.name,
-        available: item.qty,
-      })),
-    [selectedEventEquipment, selectedEventId]
-  );
-
-  const availableEquipmentOptions = useMemo(
-    () =>
-      selectedEquipmentOptions
-        .map((option) => {
-          const selectedQty = items.find((item) => item.id === option.id)?.qty ?? 0;
-          return {
-            ...option,
-            available: Math.max(0, option.available - selectedQty),
-          };
-        })
-        .filter((option) => option.available > 0),
-    [selectedEquipmentOptions, items]
-  );
-
   const canConfirm =
     Boolean(selectedEventId) &&
     items.length > 0 &&
@@ -120,15 +113,6 @@ export default function QuickReturnModal({
 
   return (
     <>
-      <SelectEquipmentModal
-        open={isSelectOpen}
-        onClose={() => setIsSelectOpen(false)}
-        onAdd={addItem}
-        equipmentOptions={availableEquipmentOptions}
-        availableLabel="อยู่ในอีเวนต์"
-        emptyText="ไม่มีอุปกรณ์ค้างอยู่ในอีเวนต์นี้"
-      />
-
       <CameraCaptureModal
         open={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
@@ -146,7 +130,7 @@ export default function QuickReturnModal({
                   คืนอุปกรณ์ด่วน
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
-                  เลือกอีเวนต์และอุปกรณ์ที่จะคืน พร้อมหลักฐานรูปภาพ
+                  เลือกอีเวนต์และเลือกอุปกรณ์ที่จะคืน พร้อมหลักฐานรูปภาพ
                 </div>
               </div>
 
@@ -158,7 +142,7 @@ export default function QuickReturnModal({
               </button>
             </div>
 
-            <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 pb-5">
+            <div className="max-h-[80vh] space-y-4 overflow-y-auto overscroll-contain px-5 pb-5">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-zinc-700">
                   เลือกอีเวนต์ <span className="text-red-600">*</span>
@@ -182,54 +166,79 @@ export default function QuickReturnModal({
                 </select>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-zinc-800">
-                  อุปกรณ์ที่จะคืน ({items.length})
+              <div>
+                <div className="mb-2 text-sm font-semibold text-zinc-800">
+                  เลือกอุปกรณ์ที่จะคืน ({items.length})
                 </div>
 
-                <button
-                  onClick={() => setIsSelectOpen(true)}
-                  disabled={!selectedEventId || availableEquipmentOptions.length === 0}
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  เพิ่มอุปกรณ์
-                </button>
-              </div>
-
-              {items.length === 0 ? (
-                <div className="flex min-h-[100px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
-                  <Package2 className="h-8 w-8 text-zinc-300" />
-                  <div className="mt-2 text-sm text-zinc-400">
-                    ยังไม่ได้เลือกอุปกรณ์
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-900">
-                          {item.name}
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                          จำนวน: {item.qty} ชิ้น
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-red-400 hover:bg-red-50"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                {!selectedEventId ? (
+                  <div className="flex min-h-[100px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
+                    <Package2 className="h-8 w-8 text-zinc-300" />
+                    <div className="mt-2 text-sm text-zinc-400">
+                      กรุณาเลือกอีเวนต์ก่อน
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ) : selectedEventEquipment.length === 0 ? (
+                  <div className="flex min-h-[100px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
+                    <Package2 className="h-8 w-8 text-zinc-300" />
+                    <div className="mt-2 text-sm text-zinc-400">
+                      ไม่มีอุปกรณ์ค้างอยู่ในอีเวนต์นี้
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                    {selectedEventEquipment.map((equipment) => {
+                      const selected = items.find((item) => item.name === equipment.name);
+                      const checked = Boolean(selected);
+
+                      return (
+                        <div
+                          key={equipment.name}
+                          className={[
+                            "rounded-xl border px-4 py-3",
+                            checked
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-zinc-200 bg-white",
+                          ].join(" ")}
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => toggleReturnItem(equipment, e.target.checked)}
+                              className="mt-1 h-4 w-4 rounded border-zinc-300 accent-blue-600"
+                            />
+
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold text-zinc-900">
+                                {equipment.name}
+                              </div>
+                              <div className="text-xs text-zinc-500">
+                                ค้างอยู่ในอีเวนต์: {equipment.qty} ชิ้น
+                              </div>
+                            </div>
+
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="text-xs font-semibold text-zinc-500">
+                                คืน
+                              </span>
+                              <input
+                                type="number"
+                                min={1}
+                                max={equipment.qty}
+                                disabled={!checked}
+                                value={selected?.qty ?? equipment.qty}
+                                onChange={(e) => updateReturnQty(equipment, e.target.value)}
+                                className="h-9 w-20 rounded-xl border border-zinc-200 bg-white px-2 text-center text-sm font-semibold text-zinc-900 outline-none focus:ring-2 focus:ring-blue-100 disabled:bg-zinc-100 disabled:text-zinc-400"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-800 shadow-sm hover:bg-zinc-50">
                 <input
@@ -320,12 +329,12 @@ export default function QuickReturnModal({
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 gap-2">
-                      {photos.map((f, i) => (
+                      {photos.map((file, index) => (
                         <div
-                          key={i}
+                          key={`${file.name}-${index}`}
                           className="rounded-xl border border-zinc-200 bg-white px-2 py-2 text-xs text-zinc-600"
                         >
-                          <div className="truncate font-medium">{f.name}</div>
+                          <div className="truncate font-medium">{file.name}</div>
                         </div>
                       ))}
                     </div>

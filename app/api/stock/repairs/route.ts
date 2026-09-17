@@ -31,18 +31,28 @@ export async function POST(req: NextRequest) {
   const damageItemId = body?.damageItemId;
   const quantity = body?.quantity;
   const action = body?.action;
+  const equipmentCodes = typeof body?.equipmentCodes === "string"
+    ? body.equipmentCodes.trim()
+    : "";
 
   const valid =
     typeof damageItemId === "string" && damageItemId.trim().length > 0 &&
     typeof quantity === "number" && Number.isFinite(quantity) && quantity > 0 &&
-    (action === "return" || action === "dispose");
+    (action === "return" || action === "dispose") &&
+    equipmentCodes.length > 0 &&
+    equipmentCodes.length <= 5000;
 
   if (!valid) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
   try {
-    const updated = await resolveRepairingStock({ damageItemId, quantity, action });
+    const updated = await resolveRepairingStock({
+      damageItemId,
+      quantity,
+      action,
+      equipmentCodes,
+    });
 
     return NextResponse.json({
       item: {
@@ -65,7 +75,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof Error && (err.message === "stock item not found" || err.message === "damage lot not found")) {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }
-    if (err instanceof Error && (err.message === "invalid quantity" || err.message === "damage lot already resolved")) {
+    if (err instanceof Error && (err.message === "invalid quantity" || err.message === "damage lot already resolved" || err.message === "equipment codes required")) {
       return NextResponse.json({ error: err.message }, { status: 400 });
     }
     return NextResponse.json({ error: "failed to resolve repairing stock" }, { status: 500 });

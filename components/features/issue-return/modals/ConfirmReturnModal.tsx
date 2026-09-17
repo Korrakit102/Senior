@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { AlertTriangle, Camera, CheckCircle, Package, Upload, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { IssueEvent, ReturnItemResult } from "../types";
 import CameraCaptureModal from "./CameraCaptureModal";
 
@@ -30,6 +31,8 @@ export default function ConfirmReturnModal({
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+
+  useBodyScrollLock(open && Boolean(event));
 
   React.useEffect(() => {
     if (!open) {

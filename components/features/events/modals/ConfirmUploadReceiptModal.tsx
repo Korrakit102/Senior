@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FileText, Upload, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Props = {
   open: boolean;
@@ -20,6 +21,8 @@ export default function ConfirmUploadReceiptModal({
   onConfirm,
   onCancel,
 }: Props) {
+  useBodyScrollLock(open);
+
   React.useEffect(() => {
     if (!open) return;
 

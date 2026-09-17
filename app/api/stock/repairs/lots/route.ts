@@ -15,6 +15,11 @@ export async function GET() {
       eventId: r.event_id,
       eventDate: r.event_date,
       quantity: r.qty,
+      cost: r.cost,
+      photoPaths: r.photo_paths ?? [],
+      eventTitle: r.event_title,
+      eventCompany: r.event_company,
+      eventPlace: r.event_place,
       createdAt: r.created_at,
     }))
   );

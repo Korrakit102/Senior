@@ -1,9 +1,20 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, PackageX, RotateCcw, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CheckCircle2,
+  ImageOff,
+  Loader2,
+  PackageX,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 import { fmt } from "../helpers";
 import StockPill from "../components/StockPill";
+import DamagePhotoModal from "../../reports/modals/DamagePhotoModal";
 
 type Props = {
   open: boolean;
@@ -19,6 +30,11 @@ type RepairLot = {
   eventId: string | null;
   eventDate: string;
   quantity: number;
+  cost: number;
+  photoPaths: string[];
+  eventTitle: string | null;
+  eventCompany: string | null;
+  eventPlace: string | null;
   createdAt: string;
 };
 
@@ -33,6 +49,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
+  const [photoModalLot, setPhotoModalLot] = useState<RepairLot | null>(null);
 
   const loadLots = async (): Promise<RepairLot[]> => {
     setLoading(true);
@@ -60,6 +77,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
     setSuccessMessage(null);
     setSearchQuery("");
     setSelectedGroup(null);
+    setPhotoModalLot(null);
     loadLots();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -266,21 +284,31 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                   return (
                     <div key={lot.id} className="rounded-xl border border-zinc-200 bg-white p-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="font-semibold text-zinc-900">{lot.stockName}</div>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-zinc-900">
+                            {lot.eventTitle ?? `งาน ${lot.eventId ?? "-"}`}
+                            {lot.eventCompany && (
+                              <span className="font-normal text-zinc-500"> · {lot.eventCompany}</span>
+                            )}
+                          </div>
+                          {lot.eventPlace && (
+                            <div className="mt-0.5 text-xs text-zinc-500">{lot.eventPlace}</div>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
                             <StockPill tone="blue">{lot.stockId}</StockPill>
                             <StockPill tone="blue">{lot.stockCode}</StockPill>
                           </div>
                           <div className="mt-1 text-xs text-zinc-500">
-                            จากงาน {lot.eventId ?? "-"} ({lot.eventDate})
+                            {lot.stockName} · {lot.eventId ?? "-"} ({lot.eventDate})
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <div className="text-xs text-zinc-500">กำลังซ่อมแซม (ล็อตนี้)</div>
                           <div className="text-lg font-bold text-amber-600">
                             {fmt(lot.quantity)} ชิ้น
                           </div>
+                          <div className="mt-1.5 text-xs text-zinc-500">มูลค่าความเสียหาย</div>
+                          <div className="text-sm font-bold text-red-600">฿{fmt(lot.cost)}</div>
                         </div>
                       </div>
 
@@ -334,6 +362,38 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                           {errorByLot[lot.id]}
                         </div>
                       )}
+
+                      <div className="mt-3 border-t border-zinc-100 pt-3">
+                        {lot.photoPaths.length > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            {lot.photoPaths.slice(0, 4).map((src, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setPhotoModalLot(lot)}
+                                className="block h-10 w-10 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={src} alt="" className="h-full w-full object-cover" />
+                              </button>
+                            ))}
+                            {lot.photoPaths.length > 4 && (
+                              <button
+                                type="button"
+                                onClick={() => setPhotoModalLot(lot)}
+                                className="text-xs font-medium text-zinc-400 hover:text-zinc-600 hover:underline"
+                              >
+                                +{lot.photoPaths.length - 4}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
+                            <ImageOff className="h-3.5 w-3.5" />
+                            ไม่มีรูปหลักฐาน
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -352,6 +412,13 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
           </div>
         </div>
       </div>
+
+      <DamagePhotoModal
+        open={photoModalLot !== null}
+        itemName={photoModalLot?.stockName ?? ""}
+        photos={photoModalLot?.photoPaths ?? []}
+        onClose={() => setPhotoModalLot(null)}
+      />
     </div>
   );
 }

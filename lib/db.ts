@@ -1209,15 +1209,22 @@ export type RepairLotRow = {
   event_id: string | null;
   event_date: string;
   qty: number;
+  cost: number;
+  photo_paths: string[] | null;
+  event_title: string | null;
+  event_company: string | null;
+  event_place: string | null;
   created_at: string;
 };
 
 // ดึงล็อตที่กำลังซ่อม (damage_items ที่ status = 'reported') ทั้งหมด แยกเป็นรายการต่อ record ไม่รวมยอด
+// join กับ events เพื่อเอาชื่องานเต็ม/บริษัท/สถานที่จัดงานมาแสดงในหน้าจำหน่ายสต็อกด้วย
 export async function listReportedRepairLots(): Promise<RepairLotRow[]> {
   const client = await pool.connect();
   try {
     await ensureStockTable(client);
     await ensureDamageItemsTable(client);
+    await ensureEventsTable(client);
     const res: QueryResult<RepairLotRow> = await client.query(
       `SELECT
          d.id,
@@ -1227,9 +1234,15 @@ export async function listReportedRepairLots(): Promise<RepairLotRow[]> {
          d.event_id,
          d.event_date,
          COALESCE(d.qty, 0)::int AS qty,
+         COALESCE(d.cost, 0)::int AS cost,
+         d.photo_paths,
+         e.title AS event_title,
+         e.company AS event_company,
+         e.place AS event_place,
          d.created_at
        FROM damage_items d
        JOIN stock_items s ON LOWER(TRIM(d.item_name)) = LOWER(TRIM(s.name))
+       LEFT JOIN events e ON e.id = d.event_id
        WHERE d.status = 'reported'
        ORDER BY d.created_at ASC`
     );

@@ -1,6 +1,8 @@
 import { Search } from "lucide-react";
 import React from "react";
 
+const MAX_EVENT_SEARCH_LENGTH = 200;
+
 type EventsToolbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
@@ -29,7 +31,10 @@ export default function EventsToolbar({
           <Search className="h-4 w-4 text-zinc-400" />
           <input
             value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) =>
+              onSearchChange(e.target.value.slice(0, MAX_EVENT_SEARCH_LENGTH))
+            }
+            maxLength={MAX_EVENT_SEARCH_LENGTH}
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-600"
             placeholder="ค้นหาอีเวนต์ด้วยชื่อ บริษัท ผู้จัด หรือสถานที่..."
           />

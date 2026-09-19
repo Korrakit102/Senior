@@ -17,6 +17,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventItem, Role, SelectedEquipment } from "../types";
 import { formatTHB, fmtDateRangeThai, parseDateRange, toDateLocal } from "../helpers";
 import EventStatusPill from "../components/EventStatusPill";
@@ -46,6 +47,8 @@ export default function EventDetailModal({
   const [pendingReceiptFile, setPendingReceiptFile] = useState<File | null>(null);
   const [pendingReceiptPreviewUrl, setPendingReceiptPreviewUrl] = useState<string | null>(null);
   const [isConfirmPaymentModalOpen, setIsConfirmPaymentModalOpen] = useState(false);
+
+  useBodyScrollLock(open && Boolean(event));
 
   useEffect(() => {
     if (!open) return;

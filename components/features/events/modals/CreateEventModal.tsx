@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, Plus, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { CreateForm } from "../types";
 import { toDateLocal, toYMD } from "../helpers";
 
@@ -18,6 +19,7 @@ function Input({
   error,
   min,
   hint,
+  maxLength,
 }: {
   label: string;
   required?: boolean;
@@ -28,6 +30,7 @@ function Input({
   error?: string;
   min?: string;
   hint?: string;
+  maxLength?: number;
 }) {
   return (
     <div>
@@ -36,10 +39,13 @@ function Input({
       </div>
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(maxLength !== undefined ? e.target.value.slice(0, maxLength) : e.target.value)
+        }
         type={type}
         placeholder={placeholder}
         min={min}
+        maxLength={maxLength}
         className={[
           "h-10 w-full rounded-xl border bg-zinc-50 px-3 text-sm text-zinc-900 outline-none",
           error
@@ -80,6 +86,7 @@ function BudgetInput({
   placeholder,
   error,
   hint,
+  maxDigits,
 }: {
   label: string;
   required?: boolean;
@@ -88,6 +95,7 @@ function BudgetInput({
   placeholder?: string;
   error?: string;
   hint?: string;
+  maxDigits?: number;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -107,9 +115,10 @@ function BudgetInput({
     const cursor = input.selectionStart ?? input.value.length;
     const digitsBeforeCursor = input.value.slice(0, cursor).replace(/[^0-9]/g, "").length;
     const rawDigits = input.value.replace(/[^0-9]/g, "");
-    const nextDigits = clampBudgetDigits(rawDigits);
+    const limitedDigits = maxDigits !== undefined ? rawDigits.slice(0, maxDigits) : rawDigits;
+    const nextDigits = clampBudgetDigits(limitedDigits);
     const nextDigitsBeforeCursor =
-      nextDigits === rawDigits ? digitsBeforeCursor : nextDigits.length;
+      nextDigits === rawDigits ? digitsBeforeCursor : Math.min(digitsBeforeCursor, nextDigits.length);
 
     onChange(nextDigits);
 
@@ -377,6 +386,8 @@ export default function CreateEventModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [companyList, setCompanyList] = useState<string[]>(companyOptions);
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     setCompanyList(companyOptions);
   }, [companyOptions]);
@@ -484,7 +495,7 @@ export default function CreateEventModal({
   return (
     <div className="fixed inset-0 z-[100]">
       <div className="absolute inset-0 bg-black/40" onClick={close} />
-      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto overscroll-contain p-4 sm:items-center">
         <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 p-5">
             <div>
@@ -502,7 +513,7 @@ export default function CreateEventModal({
             </button>
           </div>
 
-          <div className="min-h-0 overflow-y-auto px-5 pb-5 pt-5">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-5 pt-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input
                 label="ชื่ออีเวนต์"
@@ -550,6 +561,7 @@ export default function CreateEventModal({
                 onChange={(v) => setForm((s) => ({ ...s, contactPhone: v }))}
                 placeholder="กรอกเบอร์โทรผู้ติดต่อ"
                 error={errors.contactPhone}
+                maxLength={15}
               />
             </div>
 
@@ -586,6 +598,7 @@ export default function CreateEventModal({
                 value={form.attendees}
                 onChange={(v) => setForm((s) => ({ ...s, attendees: v }))}
                 placeholder="กรอกจำนวนผู้เข้าร่วม"
+                maxDigits={6}
               />
             </div>
 

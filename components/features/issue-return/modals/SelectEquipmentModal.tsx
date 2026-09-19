@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EquipmentItem, EquipmentOption } from "../types";
 
 type Props = {
@@ -26,6 +27,8 @@ export default function SelectEquipmentModal({
   const [dropOpen, setDropOpen] = useState(false);
   const [error, setError] = useState("");
   const dropRef = useRef<HTMLDivElement>(null);
+
+  useBodyScrollLock(open);
 
   React.useEffect(() => {
     if (!open) {

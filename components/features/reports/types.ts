@@ -77,8 +77,10 @@ export type DamageRow = {
   qty?: number;
   cost: number;
   billedCost?: number | null;
-  status: "reported" | "fixed";
+  resolvedCodes?: string | null;
+  status: "reported" | "fixed" | "returned" | "disposed";
   photoPaths?: string[];
+  note?: string | null;
 };
 
 export type FinanceTopEvent = {

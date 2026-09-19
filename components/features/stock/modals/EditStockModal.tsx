@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EditForm, Category, ItemStatus, StockRow } from "../types";
 import StockField from "../components/StockField";
 import SystemDropdown from "../components/SystemDropdown";
@@ -33,6 +34,8 @@ export default function EditStockModal({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useBodyScrollLock(open && Boolean(item));
 
   React.useEffect(() => {
     if (!open || !item) return;

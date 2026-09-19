@@ -22,8 +22,10 @@ export async function GET() {
       qty: r.qty,
       cost: r.cost,
       billedCost: r.billed_cost,
+      resolvedCodes: r.resolved_codes,
       status: r.status,
       photoPaths: r.photo_paths ?? [],
+      note: r.note,
     }))
   );
 }

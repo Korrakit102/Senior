@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, Clock, Package, Plus, Search, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { StockRow } from "../../../AppShell";
 import type { SelectedEquipment } from "../types";
 import { formatTHB, toDateLocal, toYMD } from "../helpers";
@@ -56,6 +57,8 @@ export default function ManageEquipmentModal({
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState(false);
   const equipRef = useRef<HTMLDivElement | null>(null);
+
+  useBodyScrollLock(open);
 
   const equipmentOptions = useMemo(() => {
     return stockData

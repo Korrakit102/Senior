@@ -506,6 +506,7 @@ export default function IssueReturnPage({
         onConfirm={handleQuickIssue}
         equipmentOptions={equipmentOptions}
         eventOptions={quickIssueEvents}
+        eventEquipmentById={equipmentByEvent}
       />
       <QuickReturnModal
         open={isQuickReturnOpen}

@@ -70,6 +70,10 @@ export default function StockPage({
 
   // stats
   const stats = useMemo(() => getStockStats(stockData), [stockData]);
+  const totalStockValue = useMemo(
+    () => rows.reduce((sum, row) => sum + row.cost * row.qty, 0),
+    [rows]
+  );
 
   // next id
   const nextId = useMemo(() => getNextStockId(stockData), [stockData]);
@@ -162,6 +166,7 @@ export default function StockPage({
         onCategoryChange={setCategory}
         showing={displayRowCount}
         total={totalDisplayRowCount}
+        totalValue={totalStockValue}
       />
 
       {/* table */}

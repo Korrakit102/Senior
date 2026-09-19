@@ -1,6 +1,7 @@
 import React from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Wallet } from "lucide-react";
 import type { Category, ItemStatus } from "../types";
+import { fmt } from "../helpers";
 
 type Props = {
   q: string;
@@ -11,6 +12,7 @@ type Props = {
   onCategoryChange: (value: "ทั้งหมด" | Category) => void;
   showing: number;
   total: number;
+  totalValue: number;
 };
 
 export default function StockFilters({
@@ -22,6 +24,7 @@ export default function StockFilters({
   onCategoryChange,
   showing,
   total,
+  totalValue,
 }: Props) {
   return (
     <>
@@ -71,8 +74,20 @@ export default function StockFilters({
         </div>
       </div>
 
-      <div className="mt-5 text-sm text-zinc-500">
-        แสดง {showing} จาก {total} รายการ
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-zinc-500">
+          แสดง {showing} จาก {total} รายการ
+        </div>
+
+        <div className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 shadow-sm">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+            <Wallet className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="text-xs text-zinc-500">มูลค่าสต็อกรวม</div>
+            <div className="text-base font-semibold text-zinc-900">฿{fmt(totalValue)}</div>
+          </div>
+        </div>
       </div>
     </>
   );

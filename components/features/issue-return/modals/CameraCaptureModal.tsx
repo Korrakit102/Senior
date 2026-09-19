@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 
 type Props = {
   open: boolean;
@@ -14,6 +15,8 @@ export default function CameraCaptureModal({ open, onClose, onCapture }: Props) 
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;

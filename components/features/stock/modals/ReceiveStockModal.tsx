@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2, Minus, Plus, Search, X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { Role, StockRow } from "../types";
 import { fmt } from "../helpers";
 import StockField from "../components/StockField";
@@ -104,6 +105,8 @@ export default function ReceiveStockModal({
   >(null);
 
   const allSuppliers = [...SUPPLIERS, ...customSuppliers];
+
+  useBodyScrollLock(open);
 
   const resetFields = () => {
     setReceiveQty(1);

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { StockRow } from "../types";
 import { fmt, getCategoryTone, getDisplayStatus, getStatusTone } from "../helpers";
 import StockPill from "../components/StockPill";
@@ -36,6 +37,8 @@ export default function StockDetailModal({ item, onClose }: Props) {
   const [repairs, setRepairs] = React.useState<RepairHistoryEntry[]>([]);
   const [repairsLoading, setRepairsLoading] = React.useState(false);
   const [repairsError, setRepairsError] = React.useState<string | null>(null);
+
+  useBodyScrollLock(Boolean(item));
 
   React.useEffect(() => {
     if (!item) return;

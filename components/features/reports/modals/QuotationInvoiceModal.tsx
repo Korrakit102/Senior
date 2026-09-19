@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react";
 import { X, Download } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventReportRow } from "../types";
 
 type DocType = "quotation" | "invoice";
@@ -23,8 +24,6 @@ const COMPANY = {
   bankBranch: "ธนาคารกรุงไทย สาขาห้าแยกพ่อขุนเม็งราย ออมทรัพย์",
   bankAccount: "539-0-49495-4",
 };
-
-const SECTIONS = ["สถานที่", "ค่าตกแต่ง", "บันเทิง"] as const;
 
 function categorize(category: string): 0 | 1 | 2 {
   const c = (category ?? "").toLowerCase();
@@ -60,6 +59,8 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
   const [includeVat, setIncludeVat] = useState(true);
   const [includeWht, setIncludeWht] = useState(true);
 
+  useBodyScrollLock(open && Boolean(event));
+
   const docTitle = docType === "quotation" ? "ใบเสนอราคา" : "ใบแจ้งหนี้";
   const docPrefix = docType === "quotation" ? "QUO" : "INV";
   const docNo = event ? `${docPrefix}-${event.id}` : "-";
@@ -74,12 +75,22 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
 <html><head>
   <meta charset="UTF-8"><title>${filename}</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body { margin: 0; padding: 12mm; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #111; }
     @page { size: A4; margin: 12mm; }
     @media print { body { padding: 0; } }
     table { border-collapse: collapse; width: 100%; }
     td, th { vertical-align: top; }
+    .print-red-fill {
+      background-color: #dc2626 !important;
+      color: #ffffff !important;
+      box-shadow: inset 0 0 0 9999px #dc2626 !important;
+    }
+    .print-red-tint {
+      background-color: #fef2f2 !important;
+      box-shadow: inset 0 0 0 9999px #fef2f2 !important;
+    }
   </style>
 </head><body>
   <div style="font-family:sans-serif;font-size:11px;color:#111;max-width:780px;margin:0 auto;">${content}</div>
@@ -237,12 +248,12 @@ function DocContent({
       {/* ── Equipment sections ── */}
       {(["สถานที่", "ค่าตกแต่ง", "บันเทิง"] as const).map((label, si) => (
         <div key={si} style={{ marginBottom: 14 }}>
-          <div style={{ background: "#dc2626", color: "#fff", padding: "4px 8px", fontWeight: 600, borderRadius: "4px 4px 0 0", fontSize: 10.5 }}>
+          <div className="print-red-fill" style={{ background: "#dc2626", color: "#fff", padding: "4px 8px", fontWeight: 600, borderRadius: "4px 4px 0 0", fontSize: 10.5, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             หมวด {si + 1}: {label}
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
             <thead>
-              <tr style={{ background: "#fef2f2" }}>
+              <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 {["รายละเอียด", "หมวดหมู่", "จำนวน", `ราคา/วัน (฿)`, `${numDays} วัน × ราคา (฿)`, "ราคารวม (฿)"].map((h) => (
                   <th key={h} style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: h === "รายละเอียด" || h === "หมวดหมู่" ? "left" : "right", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
@@ -268,7 +279,7 @@ function DocContent({
                   );
                 })
               )}
-              <tr style={{ background: "#fef2f2" }}>
+              <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
                 <td colSpan={5} style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: "right", fontWeight: 600 }}>รวม{label}</td>
                 <td style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: "right", fontWeight: 700 }}>{fmt(sectionTotals[si])}</td>
               </tr>

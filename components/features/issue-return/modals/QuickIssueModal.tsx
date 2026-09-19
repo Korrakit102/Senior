@@ -2,7 +2,13 @@
 
 import React, { useMemo, useState } from "react";
 import { ArrowRight, Package2, Plus, X } from "lucide-react";
-import type { EquipmentItem, EquipmentOption, IssueEvent } from "../types";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
+import type {
+  EquipmentItem,
+  EquipmentOption,
+  EventEquipmentItem,
+  IssueEvent,
+} from "../types";
 import { mergeEquipmentItems, removeEquipmentItem } from "../helpers";
 import SelectEquipmentModal from "./SelectEquipmentModal";
 
@@ -12,6 +18,7 @@ type Props = {
   onConfirm: (eventId: string, items: EquipmentItem[]) => void | Promise<void>;
   equipmentOptions: EquipmentOption[];
   eventOptions: IssueEvent[];
+  eventEquipmentById: Record<string, EventEquipmentItem[]>;
 };
 
 export default function QuickIssueModal({
@@ -20,15 +27,19 @@ export default function QuickIssueModal({
   onConfirm,
   equipmentOptions,
   eventOptions,
+  eventEquipmentById,
 }: Props) {
   const [items, setItems] = useState<EquipmentItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [isSelectOpen, setIsSelectOpen] = useState(false);
 
+  useBodyScrollLock(open);
+
   React.useEffect(() => {
     if (!open) {
       setItems([]);
       setSelectedEventId("");
+      setIsSelectOpen(false);
     }
   }, [open]);
 
@@ -42,6 +53,11 @@ export default function QuickIssueModal({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose, isSelectOpen]);
+
+  const existingEquipment = useMemo(
+    () => (selectedEventId ? eventEquipmentById[selectedEventId] ?? [] : []),
+    [eventEquipmentById, selectedEventId]
+  );
 
   const addItem = (item: EquipmentItem) => {
     setItems((prev) => mergeEquipmentItems(prev, item));
@@ -101,7 +117,7 @@ export default function QuickIssueModal({
               </button>
             </div>
 
-            <div className="max-h-[80vh] space-y-4 overflow-y-auto px-5 pb-5">
+            <div className="max-h-[80vh] space-y-4 overflow-y-auto overscroll-contain px-5 pb-5">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-zinc-700">
                   เลือกอีเวนต์ <span className="text-red-600">*</span>
@@ -125,7 +141,7 @@ export default function QuickIssueModal({
 
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-zinc-800">
-                  อุปกรณ์ที่เลือก ({items.length})
+                  อุปกรณ์เพิ่มใหม่ ({items.length})
                 </div>
 
                 <button
@@ -138,37 +154,77 @@ export default function QuickIssueModal({
                 </button>
               </div>
 
-              {items.length === 0 ? (
+              {!selectedEventId ? (
                 <div className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
                   <Package2 className="h-10 w-10 text-zinc-300" />
                   <div className="mt-3 text-sm text-zinc-400">
-                    ยังไม่ได้เลือกอุปกรณ์
+                    กรุณาเลือกอีเวนต์ก่อน
+                  </div>
+                </div>
+              ) : items.length === 0 && existingEquipment.length === 0 ? (
+                <div className="flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 text-center">
+                  <Package2 className="h-10 w-10 text-zinc-300" />
+                  <div className="mt-3 text-sm text-zinc-400">
+                    ยังไม่มีอุปกรณ์ในอีเวนต์นี้
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                  {items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-900">
-                          {item.name}
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                          จำนวน: {item.qty} ชิ้น
-                        </div>
+                <div className="space-y-3">
+                  {items.length > 0 ? (
+                    <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="text-xs font-semibold text-emerald-700">
+                        เพิ่มใหม่
                       </div>
+                      {items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between rounded-xl border border-emerald-200 bg-white px-4 py-3"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-zinc-900">
+                              {item.name}
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              จำนวน: {item.qty} ชิ้น
+                            </div>
+                          </div>
 
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-red-400 hover:bg-red-50"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="grid h-8 w-8 place-items-center rounded-lg text-red-400 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
+
+                  {existingEquipment.length > 0 ? (
+                    <div className="space-y-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                      <div className="text-xs font-semibold text-zinc-600">
+                        อุปกรณ์ที่จัดไว้แล้ว
+                      </div>
+                      {existingEquipment.map((item) => (
+                        <div
+                          key={item.name}
+                          className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-zinc-900">
+                              {item.name}
+                            </div>
+                            <div className="text-xs text-zinc-500">
+                              จำนวน: {item.qty} ชิ้น
+                            </div>
+                          </div>
+                          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-500">
+                            เดิม
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
 

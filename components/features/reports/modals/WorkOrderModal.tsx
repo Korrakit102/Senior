@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef } from "react";
 import { X, Download } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventReportRow } from "../types";
 
 interface Props {
@@ -35,6 +36,8 @@ function todayTH(): string {
 export default function WorkOrderModal({ open, event, onClose }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
 
+  useBodyScrollLock(open && Boolean(event));
+
   const docNo = event ? `WO-${event.id}` : "-";
 
   const handleDownload = useCallback(() => {
@@ -47,12 +50,17 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
 <html><head>
   <meta charset="UTF-8"><title>${filename}</title>
   <style>
-    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     body { margin: 0; padding: 12mm; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #111; }
     @page { size: A4; margin: 12mm; }
     @media print { body { padding: 0; } }
     table { border-collapse: collapse; width: 100%; }
     td, th { vertical-align: top; }
+    .print-red-tint {
+      background-color: #fef2f2 !important;
+      box-shadow: inset 0 0 0 9999px #fef2f2 !important;
+    }
   </style>
 </head><body>
   <div style="font-family:sans-serif;font-size:11px;color:#111;max-width:780px;margin:0 auto;">${content}</div>
@@ -212,7 +220,7 @@ function WorkOrderContent({
       <SectionLabel>รายการอุปกรณ์และบริการ</SectionLabel>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 10 }}>
         <thead>
-          <tr style={{ background: "#fef2f2" }}>
+          <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             {["#", "รายการอุปกรณ์", "หมวดหมู่", "จำนวน", `ราคา/วัน (฿)`, "รวม (฿)"].map((h) => (
               <th key={h} style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: ["#", "จำนวน"].includes(h) ? "center" : h.startsWith("ราคา") || h === "รวม (฿)" ? "right" : "left" }}>{h}</th>
             ))}
@@ -236,7 +244,7 @@ function WorkOrderContent({
               );
             })
           )}
-          <tr style={{ background: "#fef2f2" }}>
+          <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             <td colSpan={5} style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: "right", fontWeight: 600 }}>ต้นทุนรวม ({numDays} วัน)</td>
             <td style={{ border: "1px solid #e4e4e7", padding: "4px 6px", textAlign: "right", fontWeight: 700, color: "#dc2626" }}>{fmt(totalCost)}</td>
           </tr>
@@ -247,7 +255,7 @@ function WorkOrderContent({
       <SectionLabel>เป้าหมายยอดขาย</SectionLabel>
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 9.5 }}>
         <thead>
-          <tr style={{ background: "#fef2f2" }}>
+          <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
             {["ระบุรุ่นรถโชว์", "จำนวน", "ระบุรุ่นรถทดลองขับ", "จำนวน", "เป้าจองรวม", "ยอดสนใจ", "เป้ารถกระบะ", "เป้า MU-X", "เป้า 4×4", "เป้ารถบรรทุก"].map((h) => (
               <th key={h} style={{ border: "1px solid #e4e4e7", padding: "4px 4px", textAlign: "center", whiteSpace: "nowrap" }}>{h}</th>
             ))}
@@ -255,7 +263,7 @@ function WorkOrderContent({
         </thead>
         <tbody>
           <tr>
-            {Array(10).fill(null).map((_, i) => cell(""))}
+            {Array.from({ length: 10 }, () => cell(""))}
           </tr>
         </tbody>
       </table>
@@ -287,7 +295,7 @@ function WorkOrderContent({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ background: "#fef2f2", color: "#dc2626", fontWeight: 600, fontSize: 10.5, padding: "5px 10px", borderRadius: "4px 4px 0 0", marginBottom: 0, borderLeft: "3px solid #dc2626" }}>
+    <div className="print-red-tint" style={{ background: "#fef2f2", color: "#dc2626", fontWeight: 600, fontSize: 10.5, padding: "5px 10px", borderRadius: "4px 4px 0 0", marginBottom: 0, borderLeft: "3px solid #dc2626", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
       {children}
     </div>
   );

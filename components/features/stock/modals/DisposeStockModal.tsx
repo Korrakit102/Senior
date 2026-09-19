@@ -12,6 +12,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import { fmt } from "../helpers";
 import StockPill from "../components/StockPill";
 import DamagePhotoModal from "../../reports/modals/DamagePhotoModal";
@@ -38,18 +39,27 @@ type RepairLot = {
   createdAt: string;
 };
 
+type ResolveAction = "return" | "dispose";
+
+const MAX_EQUIPMENT_CODES_LENGTH = 5000;
+const MAX_NOTE_LENGTH = 100;
+
 export default function DisposeStockModal({ open, onClose, onResolved }: Props) {
   const [lots, setLots] = useState<RepairLot[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [qtyByLot, setQtyByLot] = useState<Record<string, number>>({});
+  const [equipmentCodesByAction, setEquipmentCodesByAction] = useState<Record<string, string>>({});
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [errorByLot, setErrorByLot] = useState<Record<string, string>>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [photoModalLot, setPhotoModalLot] = useState<RepairLot | null>(null);
+  const [noteByLot, setNoteByLot] = useState<Record<string, string>>({});
+
+  useBodyScrollLock(open);
 
   const loadLots = async (): Promise<RepairLot[]> => {
     setLoading(true);
@@ -74,12 +84,13 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
     if (!open) return;
     setPendingKey(null);
     setErrorByLot({});
+    setEquipmentCodesByAction({});
     setSuccessMessage(null);
     setSearchQuery("");
     setSelectedGroup(null);
     setPhotoModalLot(null);
+    setNoteByLot({});
     loadLots();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -126,9 +137,37 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
     setQtyByLot((prev) => ({ ...prev, [id]: clamped }));
   };
 
-  const submit = async (lot: RepairLot, action: "return" | "dispose") => {
+  const getActionKey = (lotId: string, action: ResolveAction) => `${lotId}-${action}`;
+
+  const setEquipmentCodes = (lotId: string, action: ResolveAction, value: string) => {
+    setEquipmentCodesByAction((prev) => ({
+      ...prev,
+      [getActionKey(lotId, action)]: value.slice(0, MAX_EQUIPMENT_CODES_LENGTH),
+    }));
+    setErrorByLot((prev) => ({ ...prev, [lotId]: "" }));
+  };
+
+  const setNote = (lotId: string, value: string) => {
+    setNoteByLot((prev) => ({ ...prev, [lotId]: value.slice(0, MAX_NOTE_LENGTH) }));
+  };
+
+  const submit = async (lot: RepairLot, action: ResolveAction) => {
     const quantity = qtyByLot[lot.id] ?? lot.quantity;
-    const key = `${lot.id}-${action}`;
+    const key = getActionKey(lot.id, action);
+    const equipmentCodes = (equipmentCodesByAction[key] ?? "").trim();
+    const note = (noteByLot[lot.id] ?? "").trim();
+
+    if (!equipmentCodes) {
+      setErrorByLot((prev) => ({
+        ...prev,
+        [lot.id]:
+          action === "return"
+            ? "กรุณากรอกรหัสอุปกรณ์ที่คืน"
+            : "กรุณากรอกรหัสอุปกรณ์ที่จำหน่าย",
+      }));
+      return;
+    }
+
     setPendingKey(key);
     setErrorByLot((prev) => ({ ...prev, [lot.id]: "" }));
     setSuccessMessage(null);
@@ -137,7 +176,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
       const res = await fetch("/api/stock/repairs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ damageItemId: lot.id, quantity, action }),
+        body: JSON.stringify({ damageItemId: lot.id, quantity, action, equipmentCodes, note }),
       });
 
       if (!res.ok) {
@@ -153,6 +192,16 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
           ? `คืน "${lot.stockName}" จากงาน ${lot.eventId ?? "-"} จำนวน ${fmt(quantity)} ชิ้น กลับเป็นพร้อมใช้แล้ว`
           : `จำหน่าย "${lot.stockName}" จากงาน ${lot.eventId ?? "-"} จำนวน ${fmt(quantity)} ชิ้นออกจากระบบแล้ว`
       );
+      setEquipmentCodesByAction((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      setNoteByLot((prev) => {
+        const next = { ...prev };
+        delete next[lot.id];
+        return next;
+      });
       await onResolved();
       const freshLots = await loadLots();
       if (selectedGroup && !freshLots.some((l) => l.stockName === selectedGroup)) {
@@ -280,6 +329,8 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                   const busyReturn = pendingKey === `${lot.id}-return`;
                   const busyDispose = pendingKey === `${lot.id}-dispose`;
                   const busy = busyReturn || busyDispose;
+                  const returnCodesKey = getActionKey(lot.id, "return");
+                  const disposeCodesKey = getActionKey(lot.id, "dispose");
 
                   return (
                     <div key={lot.id} className="rounded-xl border border-zinc-200 bg-white p-4">
@@ -310,6 +361,38 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                           <div className="mt-1.5 text-xs text-zinc-500">มูลค่าความเสียหาย</div>
                           <div className="text-sm font-bold text-red-600">฿{fmt(lot.cost)}</div>
                         </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <label className="block rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                          <div className="text-xs font-semibold text-emerald-800">
+                            รหัสอุปกรณ์ที่คืน
+                          </div>
+                          <textarea
+                            value={equipmentCodesByAction[returnCodesKey] ?? ""}
+                            onChange={(e) => setEquipmentCodes(lot.id, "return", e.target.value)}
+                            disabled={busy}
+                            maxLength={MAX_EQUIPMENT_CODES_LENGTH}
+                            rows={3}
+                            placeholder="เช่น LT-1234-01, LT-1234-02 หรือแยกบรรทัด"
+                            className="mt-2 w-full resize-none rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </label>
+
+                        <label className="block rounded-xl border border-red-100 bg-red-50/50 p-3">
+                          <div className="text-xs font-semibold text-red-800">
+                            รหัสอุปกรณ์ที่จำหน่าย
+                          </div>
+                          <textarea
+                            value={equipmentCodesByAction[disposeCodesKey] ?? ""}
+                            onChange={(e) => setEquipmentCodes(lot.id, "dispose", e.target.value)}
+                            disabled={busy}
+                            maxLength={MAX_EQUIPMENT_CODES_LENGTH}
+                            rows={3}
+                            placeholder="เช่น LT-1234-03, LT-1234-04 หรือแยกบรรทัด"
+                            className="mt-2 w-full resize-none rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          />
+                        </label>
                       </div>
 
                       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -393,6 +476,29 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                             ไม่มีรูปหลักฐาน
                           </span>
                         )}
+                      </div>
+
+                      <div className="mt-3">
+                        <textarea
+                          value={noteByLot[lot.id] ?? ""}
+                          onChange={(e) => setNote(lot.id, e.target.value)}
+                          disabled={busy}
+                          maxLength={MAX_NOTE_LENGTH}
+                          rows={2}
+                          placeholder="หมายเหตุ (ถ้ามี)..."
+                          className="w-full resize-none rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        <div
+                          className={`mt-1 text-right text-xs ${
+                            (noteByLot[lot.id]?.length ?? 0) >= MAX_NOTE_LENGTH
+                              ? "text-red-600"
+                              : (noteByLot[lot.id]?.length ?? 0) > 90
+                                ? "text-amber-600"
+                                : "text-zinc-400"
+                          }`}
+                        >
+                          {noteByLot[lot.id]?.length ?? 0}/{MAX_NOTE_LENGTH}
+                        </div>
                       </div>
                     </div>
                   );

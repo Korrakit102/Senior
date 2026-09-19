@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ExternalLink } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { DocRow } from "../types";
 import ReportsCategoryPill from "../components/ReportsCategoryPill";
 
@@ -14,6 +15,8 @@ export default function ReportDocDetailModal({
   selectedDoc,
   onClose,
 }: Props) {
+  useBodyScrollLock(Boolean(selectedDoc));
+
   if (!selectedDoc) return null;
 
   return (

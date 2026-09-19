@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { DamageRow } from "../types";
 
 type Props = {
@@ -15,6 +16,8 @@ export default function EditDamageAmountModal({ open, damageRow, onClose, onSave
   const [cost, setCost] = useState("");
   const [billedCost, setBilledCost] = useState("");
   const [errors, setErrors] = useState<{ cost?: string; billedCost?: string }>({});
+
+  useBodyScrollLock(open && Boolean(damageRow));
 
   useEffect(() => {
     if (!open || !damageRow) return;

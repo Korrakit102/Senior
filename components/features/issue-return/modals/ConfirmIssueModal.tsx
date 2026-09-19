@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ArrowRight } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventEquipmentItem, IssueEvent } from "../types";
 
 type Props = {
@@ -19,6 +20,8 @@ export default function ConfirmIssueModal({
   onConfirm,
   onCancel,
 }: Props) {
+  useBodyScrollLock(open && Boolean(event));
+
   React.useEffect(() => {
     if (!open) return;
 

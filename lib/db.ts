@@ -122,9 +122,11 @@ export type DamageItemRow = {
   qty: number;
   cost: number;
   billed_cost: number | null;
+  resolved_codes: string | null;
   status: string;
   created_at: string;
   photo_paths: string[] | null;
+  note: string | null;
 };
 
 // รูปแบบประวัติแจ้งซ่อมที่อ้างอิงจาก damage_items สำหรับแสดงในรายละเอียดสต็อก
@@ -369,6 +371,20 @@ async function ensureDamageItemsTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE damage_items
       ADD COLUMN IF NOT EXISTS photo_paths TEXT[];
+    `);
+    await c.query(`
+      ALTER TABLE damage_items
+      ADD COLUMN IF NOT EXISTS resolved_codes TEXT;
+    `);
+    // หมายเหตุที่กรอกตอนคืน/จำหน่ายสต็อกในโมดัลจำหน่ายสต็อก — ไม่บังคับกรอก
+    await c.query(`
+      ALTER TABLE damage_items
+      ADD COLUMN IF NOT EXISTS note TEXT;
+    `);
+    await c.query(`
+      UPDATE damage_items
+      SET billed_cost = cost
+      WHERE billed_cost IS NULL;
     `);
   } finally {
     if (!client) c.release();
@@ -1258,6 +1274,8 @@ export async function resolveRepairingStock(payload: {
   damageItemId: string;
   quantity: number;
   action: "return" | "dispose";
+  equipmentCodes: string;
+  note?: string;
 }): Promise<StockRowDb> {
   const client = await pool.connect();
   try {
@@ -1294,6 +1312,12 @@ export async function resolveRepairingStock(payload: {
       await client.query("ROLLBACK");
       throw new Error("invalid quantity");
     }
+    const resolvedCodes = payload.equipmentCodes.trim();
+    if (!resolvedCodes) {
+      await client.query("ROLLBACK");
+      throw new Error("equipment codes required");
+    }
+    const note = payload.note?.trim() || null;
 
     const currentRes = await client.query<StockRowDb>(
       `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
@@ -1309,7 +1333,10 @@ export async function resolveRepairingStock(payload: {
     const resolvedStatus = payload.action === "return" ? "returned" : "disposed";
 
     if (payload.quantity >= lot.qty) {
-      await client.query(`UPDATE damage_items SET status = $2 WHERE id = $1`, [lot.id, resolvedStatus]);
+      await client.query(
+        `UPDATE damage_items SET status = $2, resolved_codes = $3, note = $4 WHERE id = $1`,
+        [lot.id, resolvedStatus, resolvedCodes, note]
+      );
     } else {
       const portion = payload.quantity / lot.qty;
       const portionCost = Math.round(lot.cost * portion);
@@ -1317,9 +1344,9 @@ export async function resolveRepairingStock(payload: {
       const splitId = `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
 
       await client.query(
-        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`,
-        [splitId, lot.event_id, lot.item_name, lot.code, lot.event_date, payload.quantity, portionCost, portionBilled, resolvedStatus]
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, resolved_codes, note, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+        [splitId, lot.event_id, lot.item_name, lot.code, lot.event_date, payload.quantity, portionCost, portionBilled, resolvedStatus, resolvedCodes, note]
       );
       await client.query(
         `UPDATE damage_items
@@ -1464,8 +1491,8 @@ export async function insertDamageItems(payload: {
     const createdAt = new Date().toISOString();
     for (const item of payload.items) {
       await client.query(
-        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, status, created_at, photo_paths)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at, photo_paths)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         [
           `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
           payload.eventId,
@@ -1473,6 +1500,7 @@ export async function insertDamageItems(payload: {
           payload.eventCode,
           payload.eventDate,
           item.qty,
+          item.cost,
           item.cost,
           "reported",
           createdAt,
@@ -1491,7 +1519,7 @@ export async function listDamageItems(): Promise<DamageItemRow[]> {
   try {
     await ensureDamageItemsTable(client);
     const res: QueryResult<DamageItemRow> = await client.query(
-      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at, photo_paths
+      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at, photo_paths, note
        FROM damage_items ORDER BY created_at DESC`
     );
     return res.rows;
@@ -1517,7 +1545,7 @@ export async function updateDamageItemAmounts(payload: {
       `UPDATE damage_items
        SET cost = $2, billed_cost = $3
        WHERE id = $1
-       RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at`,
+       RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at`,
       [payload.id, payload.cost, payload.billedCost]
     );
 
@@ -1531,7 +1559,7 @@ export async function updateDamageItemAmounts(payload: {
            ORDER BY created_at DESC
            LIMIT 1
          )
-         RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, created_at`,
+         RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at`,
         [payload.eventId, payload.itemName, payload.cost, payload.billedCost]
       );
     }

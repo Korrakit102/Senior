@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { CheckCircle2, FilePlus, ImageOff } from "lucide-react";
+import { CheckCircle2, FilePlus, MoreVertical } from "lucide-react";
 import type { DamageRow } from "../types";
 import ReportsCard from "./ReportsCard";
 import ReportsExportButton from "./ReportsExportButton";
-import DamagePhotoModal from "../modals/DamagePhotoModal";
+import DamageDetailsModal from "../modals/DamageDetailsModal";
 import { fmtDateRangeThai } from "../../events/helpers";
 
 type Props = {
@@ -19,7 +19,7 @@ export default function DamageReportSection({
   onOpenInvoice,
   canIssueInvoice = true,
 }: Props) {
-  const [photoModalRow, setPhotoModalRow] = useState<DamageRow | null>(null);
+  const [detailsRow, setDetailsRow] = useState<DamageRow | null>(null);
 
   return (
     <ReportsCard
@@ -42,7 +42,7 @@ export default function DamageReportSection({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[900px] w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-100">
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">อุปกรณ์</th>
@@ -50,17 +50,17 @@ export default function DamageReportSection({
                 <th className="pb-3 text-left text-xs font-semibold text-zinc-500">วันที่</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">จำนวนเสียหาย</th>
                 <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่า (฿)</th>
-                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">รูปหลักฐาน</th>
+                <th className="pb-3 text-right text-xs font-semibold text-zinc-500">มูลค่าเรียกเก็บ (฿)</th>
                 <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">สถานะ</th>
-                {canIssueInvoice && (
-                  <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
-                )}
+                <th className="pb-3 pl-4 text-left text-xs font-semibold text-zinc-500">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
               {rows.map((row) => {
+                const billedCost = row.billedCost ?? row.cost;
                 const hasBreakdown = row.qty != null && row.cost > 0;
                 const isDisposed = (row.status as string) === "disposed";
+
                 return (
                   <tr key={row.id} className="hover:bg-zinc-50/60">
                     <td className="py-3 font-medium text-zinc-900">{row.itemName}</td>
@@ -72,36 +72,8 @@ export default function DamageReportSection({
                     <td className="py-3 text-right font-medium text-zinc-900">
                       {row.cost.toLocaleString("th-TH")}
                     </td>
-                    <td className="py-3 pl-4">
-                      {row.photoPaths && row.photoPaths.length > 0 ? (
-                        <div className="flex items-center gap-1.5">
-                          {row.photoPaths.slice(0, 3).map((src, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => setPhotoModalRow(row)}
-                              className="block h-9 w-9 overflow-hidden rounded-lg border border-zinc-200 hover:opacity-80"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={src} alt="" className="h-full w-full object-cover" />
-                            </button>
-                          ))}
-                          {row.photoPaths.length > 3 && (
-                            <button
-                              type="button"
-                              onClick={() => setPhotoModalRow(row)}
-                              className="text-xs font-medium text-zinc-400 hover:text-zinc-600 hover:underline"
-                            >
-                              +{row.photoPaths.length - 3}
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-zinc-400">
-                          <ImageOff className="h-3.5 w-3.5" />
-                          ไม่มีรูป
-                        </span>
-                      )}
+                    <td className="py-3 text-right font-medium text-zinc-900">
+                      {billedCost.toLocaleString("th-TH")}
                     </td>
                     <td className="py-3 pl-4">
                       <span
@@ -116,30 +88,41 @@ export default function DamageReportSection({
                         {row.status === "reported" ? "แจ้งซ่อมแล้ว" : isDisposed ? "จำหน่ายแล้ว" : "ซ่อมแล้ว"}
                       </span>
                     </td>
-                    {canIssueInvoice && (
-                      <td className="py-3 pl-4">
-                        <div className="relative group inline-flex">
-                          <button
-                            onClick={hasBreakdown ? () => onOpenInvoice(row) : undefined}
-                            disabled={!hasBreakdown}
-                            className={
-                              hasBreakdown
-                                ? "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
-                                : "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed select-none"
-                            }
-                          >
-                            <FilePlus className={`h-4 w-4 ${hasBreakdown ? "text-zinc-500" : "text-zinc-300"}`} />
-                            ออกใบแจ้งหนี้
-                          </button>
-                          {!hasBreakdown && (
-                            <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg z-10">
-                              ไม่มีข้อมูลมูลค่าความเสียหาย
-                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    )}
+                    <td className="py-3 pl-4">
+                      <div className="flex items-center gap-2">
+                        {canIssueInvoice && (
+                          <div className="relative group inline-flex">
+                            <button
+                              onClick={hasBreakdown ? () => onOpenInvoice(row) : undefined}
+                              disabled={!hasBreakdown}
+                              className={
+                                hasBreakdown
+                                  ? "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50"
+                                  : "inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-400 cursor-not-allowed select-none"
+                              }
+                            >
+                              <FilePlus className={`h-4 w-4 ${hasBreakdown ? "text-zinc-500" : "text-zinc-300"}`} />
+                              ออกใบแจ้งหนี้
+                            </button>
+                            {!hasBreakdown && (
+                              <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-lg bg-zinc-800 px-3 py-1.5 text-xs text-white shadow-lg group-hover:flex">
+                                ไม่มีข้อมูลมูลค่าความเสียหาย
+                                <div className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-zinc-800" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setDetailsRow(row)}
+                          className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50"
+                          title="ดูรายละเอียดเพิ่มเติม"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -148,11 +131,10 @@ export default function DamageReportSection({
         </div>
       )}
 
-      <DamagePhotoModal
-        open={photoModalRow !== null}
-        itemName={photoModalRow?.itemName ?? ""}
-        photos={photoModalRow?.photoPaths ?? []}
-        onClose={() => setPhotoModalRow(null)}
+      <DamageDetailsModal
+        open={detailsRow !== null}
+        row={detailsRow}
+        onClose={() => setDetailsRow(null)}
       />
     </ReportsCard>
   );

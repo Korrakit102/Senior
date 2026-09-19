@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useState } from "react";
 import { X, FilePlus } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { DocCategory, DocRow } from "../types";
 
 type Props = {
@@ -31,6 +34,8 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
   const [description, setDescription] = useState("");
   const [fileName, setFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+
+  useBodyScrollLock(open);
 
   if (!open) return null;
 

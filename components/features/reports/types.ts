@@ -34,6 +34,8 @@ export type EventReportRow = {
   organizer?: string;
   contactName?: string;
   contactPhone?: string;
+  customerEmail?: string;
+  customerTaxId?: string;
   branchCode?: string;
   budgetTHB?: number;
   attendees?: number;

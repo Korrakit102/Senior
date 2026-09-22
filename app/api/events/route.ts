@@ -24,6 +24,8 @@ function mapEvent(row: EventRow) {
     attendees: row.attendees ?? undefined,
     contactName: row.contact_name ?? undefined,
     contactPhone: row.contact_phone ?? undefined,
+    customerEmail: row.customer_email ?? undefined,
+    customerTaxId: row.customer_tax_id ?? undefined,
     equipment: Array.isArray(row.equipment) ? row.equipment : [],
     paymentReceipt:
       row.receipt_file_name &&
@@ -89,6 +91,8 @@ export async function POST(req: NextRequest) {
     attendees: typeof body.attendees === "number" ? body.attendees : undefined,
     contactName: typeof body.contactName === "string" ? body.contactName : undefined,
     contactPhone: typeof body.contactPhone === "string" ? body.contactPhone : undefined,
+    customerEmail: typeof body.customerEmail === "string" ? body.customerEmail : undefined,
+    customerTaxId: typeof body.customerTaxId === "string" ? body.customerTaxId : undefined,
     equipment: [],
   });
 

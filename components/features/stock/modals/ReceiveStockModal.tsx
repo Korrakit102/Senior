@@ -88,6 +88,9 @@ export default function ReceiveStockModal({
 
   const [receiveQty, setReceiveQty] = useState(1);
   const [purchasePrice, setPurchasePrice] = useState("");
+  // ค่าส่ง/ค่าอื่นๆ ยังเป็น local state ของฟอร์มเท่านั้น (ยังไม่ส่งไป backend)
+  const [shippingCost, setShippingCost] = useState("");
+  const [otherCost, setOtherCost] = useState("");
   const [supplier, setSupplier] = useState(SUPPLIERS[0]);
   const [poNumber, setPoNumber] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -111,6 +114,8 @@ export default function ReceiveStockModal({
   const resetFields = () => {
     setReceiveQty(1);
     setPurchasePrice("");
+    setShippingCost("");
+    setOtherCost("");
     setSupplier(SUPPLIERS[0]);
     setPoNumber("");
     setErrors({});
@@ -167,11 +172,18 @@ export default function ReceiveStockModal({
   const currentAvgCost = selectedItem?.cost ?? 0;
   const newQty = receiveQty;
   const newPrice = Number(purchasePrice) || 0;
+  const shipping = Number(shippingCost) || 0;
+  const other = Number(otherCost) || 0;
+
+  // ต้นทุนล็อตใหม่ = (จำนวนที่รับเข้า × ราคาซื้อต่อหน่วย) + ค่าส่ง + ค่าอื่นๆ
+  const newLotCost = newQty * newPrice + shipping + other;
+  // ต้นทุนเฉลี่ยต่อหน่วยของล็อตใหม่ = ต้นทุนล็อตใหม่ / จำนวนที่รับเข้า
+  const newLotAvgCost = newQty > 0 ? newLotCost / newQty : 0;
 
   const combinedQty = currentQty + newQty;
   const newAvgCost =
     combinedQty > 0
-      ? (currentQty * currentAvgCost + newQty * newPrice) / combinedQty
+      ? (currentQty * currentAvgCost + newLotCost) / combinedQty
       : currentAvgCost;
   const percentChange =
     currentAvgCost > 0
@@ -195,6 +207,14 @@ export default function ReceiveStockModal({
       e.purchasePrice = "ราคาซื้อต้องเป็นตัวเลขมากกว่า 0";
     }
 
+    if (shippingCost.trim() && (Number.isNaN(Number(shippingCost)) || Number(shippingCost) < 0)) {
+      e.shippingCost = "ค่าส่งต้องเป็นตัวเลขไม่ติดลบ";
+    }
+
+    if (otherCost.trim() && (Number.isNaN(Number(otherCost)) || Number(otherCost) < 0)) {
+      e.otherCost = "ค่าอื่นๆ ต้องเป็นตัวเลขไม่ติดลบ";
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -212,6 +232,8 @@ export default function ReceiveStockModal({
           equipmentId: selectedItem.id,
           quantity: receiveQty,
           unitCost: newPrice,
+          shippingCost: shipping || undefined,
+          otherCost: other || undefined,
           supplier,
           poNumber: poNumber.trim() || undefined,
           role,
@@ -439,6 +461,28 @@ export default function ReceiveStockModal({
                 />
               </StockField>
 
+              <StockField label="ค่าส่ง (บาท)" error={errors.shippingCost}>
+                <input
+                  type="number"
+                  disabled={!selectedItem}
+                  value={shippingCost}
+                  onChange={(e) => setShippingCost(e.target.value)}
+                  placeholder="ระบุค่าส่ง (ไม่บังคับ)"
+                  className={`${inp(errors.shippingCost)} disabled:cursor-not-allowed disabled:opacity-50`}
+                />
+              </StockField>
+
+              <StockField label="ค่าอื่นๆ (บาท)" error={errors.otherCost}>
+                <input
+                  type="number"
+                  disabled={!selectedItem}
+                  value={otherCost}
+                  onChange={(e) => setOtherCost(e.target.value)}
+                  placeholder="ระบุค่าอื่นๆ (ไม่บังคับ)"
+                  className={`${inp(errors.otherCost)} disabled:cursor-not-allowed disabled:opacity-50`}
+                />
+              </StockField>
+
               <StockField label="ผู้จัดจำหน่าย (Supplier)">
                 {!isAddingSupplier ? (
                   <select
@@ -569,9 +613,26 @@ export default function ReceiveStockModal({
                     ล็อตใหม่ ({fmt(newQty)} ชิ้น)
                   </span>
                   <span className="font-medium text-zinc-800">
-                    {fmt(newPrice)} ฿/ชิ้น
+                    {newLotAvgCost.toLocaleString("th-TH", {
+                      maximumFractionDigits: 2,
+                    })}{" "}
+                    ฿/ชิ้น
                   </span>
                 </div>
+
+                {(shipping > 0 || other > 0) && (
+                  <div className="flex items-center justify-between text-xs text-zinc-500">
+                    <span>
+                      ต้นทุนล็อตใหม่รวม (รวมค่าส่ง+ค่าอื่นๆ)
+                    </span>
+                    <span>
+                      {newLotCost.toLocaleString("th-TH", {
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      ฿
+                    </span>
+                  </div>
+                )}
 
                 <div className="my-2 border-t border-zinc-200" />
 

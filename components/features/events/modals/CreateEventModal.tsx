@@ -358,6 +358,8 @@ export default function CreateEventModal({
     organizer: string;
     contactName: string;
     contactPhone: string;
+    customerEmail?: string;
+    customerTaxId?: string;
     branchCode?: string;
     budgetTHB?: number;
     desc?: string;
@@ -385,6 +387,10 @@ export default function CreateEventModal({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [companyList, setCompanyList] = useState<string[]>(companyOptions);
+
+  // เก็บเป็น local state แยกจาก CreateForm ใน types.ts (ไม่ต้องแตะ type นั้น) แต่ส่งไปพร้อม payload ตอน submit จริง
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerTaxId, setCustomerTaxId] = useState("");
 
   useBodyScrollLock(open);
 
@@ -422,6 +428,8 @@ export default function CreateEventModal({
       startDate: "",
       endDate: "",
     });
+    setCustomerEmail("");
+    setCustomerTaxId("");
     setErrors({});
   };
 
@@ -437,6 +445,15 @@ export default function CreateEventModal({
     if (!form.organizerName.trim()) e.organizerName = "กรุณากรอกชื่อลูกค้า";
     if (!form.contactName.trim()) e.contactName = "กรุณากรอกชื่อผู้ติดต่อ";
     if (!form.contactPhone.trim()) e.contactPhone = "กรุณากรอกเบอร์โทร";
+    if (
+      customerEmail.trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail.trim())
+    ) {
+      e.customerEmail = "รูปแบบอีเมลไม่ถูกต้อง";
+    }
+    if (customerTaxId.trim() && !/^\d{13}$/.test(customerTaxId.trim())) {
+      e.customerTaxId = "เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก";
+    }
     if (!form.budgetTHB.trim()) e.budgetTHB = "กรุณากรอกงบประมาณ";
     if (form.budgetTHB.trim() && Number.isNaN(Number(form.budgetTHB))) {
       e.budgetTHB = "งบประมาณต้องเป็นตัวเลข";
@@ -478,6 +495,8 @@ export default function CreateEventModal({
       organizer: form.organizerName.trim(),
       contactName: form.contactName.trim(),
       contactPhone: form.contactPhone.trim(),
+      customerEmail: customerEmail.trim() || undefined,
+      customerTaxId: customerTaxId.trim() || undefined,
       branchCode: form.branchCode.trim() || undefined,
       budgetTHB: form.budgetTHB.trim() ? Number(form.budgetTHB) : undefined,
       desc: form.description.trim() || undefined,
@@ -562,6 +581,27 @@ export default function CreateEventModal({
                 placeholder="กรอกเบอร์โทรผู้ติดต่อ"
                 error={errors.contactPhone}
                 maxLength={15}
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                label="อีเมลลูกค้า"
+                type="email"
+                value={customerEmail}
+                onChange={(v) => setCustomerEmail(v)}
+                placeholder="กรอกอีเมลลูกค้า"
+                error={errors.customerEmail}
+              />
+              <Input
+                label="เลขประจำตัวผู้เสียภาษี"
+                value={customerTaxId}
+                onChange={(v) =>
+                  setCustomerTaxId(v.replace(/[^0-9]/g, "").slice(0, 13))
+                }
+                placeholder="กรอกเลขประจำตัวผู้เสียภาษี (13 หลัก)"
+                error={errors.customerTaxId}
+                maxLength={13}
               />
             </div>
 

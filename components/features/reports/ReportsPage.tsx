@@ -280,6 +280,8 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           organizer?: string;
           contactName?: string;
           contactPhone?: string;
+          customerEmail?: string;
+          customerTaxId?: string;
           branchCode?: string;
           budgetTHB?: number;
           attendees?: number;
@@ -320,6 +322,8 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
               organizer: r.organizer,
               contactName: r.contactName,
               contactPhone: r.contactPhone,
+              customerEmail: r.customerEmail,
+              customerTaxId: r.customerTaxId,
               branchCode: r.branchCode,
               budgetTHB: r.budgetTHB,
               attendees: r.attendees,

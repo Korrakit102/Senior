@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
       prevAvgCost: Number(r.prev_avg_cost),
       newQty: r.new_qty,
       newAvgCost: Number(r.new_avg_cost),
+      shippingCost: Number(r.shipping_cost),
+      otherCost: Number(r.other_cost),
       receivedByRole: r.received_by_role,
       createdAt: r.created_at,
     }))
@@ -38,6 +40,8 @@ export async function POST(req: NextRequest) {
   const equipmentId = body?.equipmentId;
   const quantity = body?.quantity;
   const unitCost = body?.unitCost;
+  const shippingCost = body?.shippingCost;
+  const otherCost = body?.otherCost;
   const supplier = body?.supplier;
   const poNumber = body?.poNumber;
   const role = body?.role;
@@ -48,7 +52,9 @@ export async function POST(req: NextRequest) {
     typeof unitCost === "number" && unitCost > 0 &&
     typeof supplier === "string" && supplier.trim().length > 0 &&
     typeof role === "string" && role.trim().length > 0 &&
-    (poNumber === undefined || poNumber === null || typeof poNumber === "string");
+    (poNumber === undefined || poNumber === null || typeof poNumber === "string") &&
+    (shippingCost === undefined || shippingCost === null || (typeof shippingCost === "number" && shippingCost >= 0)) &&
+    (otherCost === undefined || otherCost === null || (typeof otherCost === "number" && otherCost >= 0));
 
   if (!valid) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
@@ -59,6 +65,8 @@ export async function POST(req: NextRequest) {
       equipmentId,
       quantity,
       unitCost,
+      shippingCost: typeof shippingCost === "number" ? shippingCost : undefined,
+      otherCost: typeof otherCost === "number" ? otherCost : undefined,
       supplier,
       poNumber: typeof poNumber === "string" && poNumber.trim() ? poNumber.trim() : undefined,
       receivedByRole: role,

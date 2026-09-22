@@ -33,10 +33,49 @@ function todayTH(): string {
   return new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 }
 
+/* ─── Thai baht text (bahttext) ─── */
+const THAI_DIGITS = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+const THAI_PLACES = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน"];
+
+function digitsToThaiText(numStr: string): string {
+  if (numStr === "" || /^0+$/.test(numStr)) return "";
+  const len = numStr.length;
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    const digit = Number(numStr[i]);
+    if (digit === 0) continue;
+    const pos = len - 1 - i;
+    const base = pos % 6;
+    const millionSuffix = "ล้าน".repeat(Math.floor(pos / 6));
+    let word: string;
+    if (base === 0) {
+      word = pos === 0 && digit === 1 && len > 1 ? "เอ็ด" : THAI_DIGITS[digit];
+    } else if (base === 1) {
+      word = digit === 1 ? "สิบ" : digit === 2 ? "ยี่สิบ" : `${THAI_DIGITS[digit]}สิบ`;
+    } else {
+      word = `${THAI_DIGITS[digit]}${THAI_PLACES[base]}`;
+    }
+    result += word + millionSuffix;
+  }
+  return result;
+}
+
+function bahtText(amount: number): string {
+  const totalSatang = Math.max(0, Math.round((amount + Number.EPSILON) * 100));
+  const bahtPart = Math.floor(totalSatang / 100);
+  const satangPart = totalSatang % 100;
+
+  const bahtWords = bahtPart === 0 ? "ศูนย์" : digitsToThaiText(String(bahtPart));
+  if (satangPart === 0) {
+    return `${bahtWords}บาทถ้วน`;
+  }
+  return `${bahtWords}บาท${digitsToThaiText(String(satangPart))}สตางค์`;
+}
+
 export default function DamageInvoiceModal({ open, damageRow, event, onClose, onEdit }: Props) {
   const printRef = React.useRef<HTMLDivElement>(null);
   const [includeVat, setIncludeVat] = useState(true);
-  const [includeWht, setIncludeWht] = useState(true);
+  const [whtRate, setWhtRate] = useState<0 | 2 | 3 | 5>(3);
 
   useBodyScrollLock(open && Boolean(damageRow));
 
@@ -84,7 +123,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
 
   const grandTotal = damageRow.billedCost ?? damageRow.cost;
   const vat = includeVat ? grandTotal * 0.07 : 0;
-  const wht = includeWht ? grandTotal * 0.03 : 0;
+  const wht = whtRate > 0 ? grandTotal * (whtRate / 100) : 0;
   const netTotal = grandTotal + vat - wht;
 
   return (
@@ -133,13 +172,17 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
             <span className="text-sm font-medium text-zinc-700">ภาษีมูลค่าเพิ่ม 7%</span>
           </label>
           <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={includeWht}
-              onChange={(e) => setIncludeWht(e.target.checked)}
-              className="h-4 w-4 accent-red-600"
-            />
-            <span className="text-sm font-medium text-zinc-700">หัก ณ ที่จ่าย 3%</span>
+            <span className="text-sm font-medium text-zinc-700">หัก ณ ที่จ่าย</span>
+            <select
+              value={whtRate}
+              onChange={(e) => setWhtRate(Number(e.target.value) as 0 | 2 | 3 | 5)}
+              className="h-8 rounded-lg border border-zinc-200 bg-white px-2 text-sm font-medium text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-200"
+            >
+              <option value={0}>ไม่หัก</option>
+              <option value={2}>2%</option>
+              <option value={3}>3%</option>
+              <option value={5}>5%</option>
+            </select>
           </label>
         </div>
 
@@ -161,7 +204,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
               wht={wht}
               netTotal={netTotal}
               includeVat={includeVat}
-              includeWht={includeWht}
+              whtRate={whtRate}
               fmt={fmt}
             />
           </div>
@@ -174,12 +217,12 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
 /* ─── Document content (rendered both on-screen & in print window) ─── */
 function DocContent({
   docTitle, docNo, today, damageRow, event,
-  grandTotal, vat, wht, netTotal, includeVat, includeWht, fmt,
+  grandTotal, vat, wht, netTotal, includeVat, whtRate, fmt,
 }: {
   docTitle: string; docNo: string; today: string;
   damageRow: DamageRow; event: EventReportRow | null;
   grandTotal: number; vat: number; wht: number; netTotal: number;
-  includeVat: boolean; includeWht: boolean;
+  includeVat: boolean; whtRate: number;
   fmt: (n: number) => string;
 }) {
   const s = (v?: string | null) => v || "-";
@@ -215,6 +258,8 @@ function DocContent({
         <InfoRow label="อีเวนต์ที่เกี่ยวข้อง" value={s(event?.title)} />
         <InfoRow label="รหัสอีเวนต์" value={s(damageRow.eventId ?? damageRow.code)} />
         <InfoRow label="วันที่เกิดความเสียหาย" value={fmtDateRangeThai(damageRow.date)} />
+        <InfoRow label="อีเมลลูกค้า" value={s(event?.customerEmail)} />
+        <InfoRow label="เลขประจำตัวผู้เสียภาษี" value={s(event?.customerTaxId)} />
       </div>
 
       {/* ── Damage item ── */}
@@ -255,9 +300,9 @@ function DocContent({
           <div style={{ fontWeight: 600, marginBottom: 6 }}>หมายเหตุ / เงื่อนไขการชำระเงิน</div>
           <ul style={{ paddingLeft: 14, color: "#555", lineHeight: 1.8, margin: 0 }}>
             <li>ใบแจ้งหนี้นี้ออกให้สำหรับค่าชดเชยความเสียหายของอุปกรณ์ที่เกิดขึ้นระหว่างการใช้งานในอีเวนต์ข้างต้น</li>
-            {includeWht && <li>ภาษีหัก ณ ที่จ่าย 3%</li>}
+            {whtRate > 0 && <li>ภาษีหัก ณ ที่จ่าย {whtRate}%</li>}
             {includeVat && <li>ภาษีมูลค่าเพิ่ม 7%</li>}
-            {includeWht && <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย 3% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>}
+            {whtRate > 0 && <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย {whtRate}% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>}
           </ul>
           <div style={{ marginTop: 10, fontWeight: 600 }}>ข้อมูลการชำระเงิน</div>
           <div style={{ color: "#555", lineHeight: 1.8, marginTop: 4 }}>
@@ -275,10 +320,15 @@ function DocContent({
               <TotalRow label="มูลค่าความเสียหาย (ประเมิน)" value={fmt(damageRow.cost)} dim />
               <TotalRow label="ยอดรวม (มูลค่าเรียกเก็บ)" value={fmt(grandTotal)} />
               {includeVat && <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />}
-              {includeWht && <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />}
+              {whtRate > 0 && <TotalRow label={`หัก ณ ที่จ่าย ${whtRate}%`} value={`(${fmt(wht)})`} dim />}
               <tr style={{ borderTop: "2px solid #dc2626" }}>
                 <td style={{ padding: "6px 6px", fontWeight: 700 }}>จำนวนเงินทั้งสิ้น</td>
                 <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 700, fontSize: 14, color: "#dc2626" }}>{fmt(netTotal)}</td>
+              </tr>
+              <tr>
+                <td colSpan={2} style={{ padding: "0 6px 6px", textAlign: "right", fontSize: 10, color: "#666" }}>
+                  ({bahtText(netTotal)})
+                </td>
               </tr>
             </tbody>
           </table>

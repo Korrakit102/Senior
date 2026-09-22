@@ -119,7 +119,9 @@ export default function EventsPage({
             createdAt: r.createdAt, desc: r.desc, company: r.company,
             place: r.place, date: safeDate, items: r.items,
             organizer: r.organizer, contactName: r.contactName,
-            contactPhone: r.contactPhone, branchCode: r.branchCode,
+            contactPhone: r.contactPhone,
+            customerEmail: r.customerEmail, customerTaxId: r.customerTaxId,
+            branchCode: r.branchCode,
             budgetTHB: r.budgetTHB, attendees: r.attendees,
             isIssued: r.issueStatus === "inuse",
             paymentReceipt: r.paymentReceipt,
@@ -161,7 +163,9 @@ export default function EventsPage({
               createdAt: r.createdAt, desc: r.desc, company: r.company,
               place: r.place, date: safeDate, items: r.items,
               organizer: r.organizer, contactName: r.contactName,
-              contactPhone: r.contactPhone, branchCode: r.branchCode,
+              contactPhone: r.contactPhone,
+              customerEmail: r.customerEmail, customerTaxId: r.customerTaxId,
+              branchCode: r.branchCode,
               budgetTHB: r.budgetTHB, attendees: r.attendees,
               isIssued: r.issueStatus === "inuse",
               paymentReceipt: r.paymentReceipt,
@@ -349,7 +353,8 @@ export default function EventsPage({
 
   const handleCreate = async (payload: {
     title: string; company: string; organizer: string;
-    contactName: string; contactPhone: string; branchCode?: string;
+    contactName: string; contactPhone: string;
+    customerEmail?: string; customerTaxId?: string; branchCode?: string;
     budgetTHB?: number; desc?: string; attendees?: number;
     place: string; startDate: string; endDate: string;
   }) => {
@@ -360,6 +365,7 @@ export default function EventsPage({
         body: JSON.stringify({
           title: payload.title, company: payload.company, organizer: payload.organizer,
           contactName: payload.contactName, contactPhone: payload.contactPhone,
+          customerEmail: payload.customerEmail, customerTaxId: payload.customerTaxId,
           branchCode: payload.branchCode, budgetTHB: payload.budgetTHB,
           desc: payload.desc, attendees: payload.attendees,
           place: payload.place, startDate: payload.startDate, endDate: payload.endDate,

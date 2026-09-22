@@ -72,6 +72,8 @@ export type EventRow = {
   attendees: number | null;
   contact_name: string | null;
   contact_phone: string | null;
+  customer_email: string | null;
+  customer_tax_id: string | null;
   equipment: EventEquipmentRow[];
   receipt_file_name: string | null;
   receipt_file_type: string | null;
@@ -154,6 +156,8 @@ export type StockReceiptRow = {
   prev_avg_cost: number;
   new_qty: number;
   new_avg_cost: number;
+  shipping_cost: number;
+  other_cost: number;
   received_by_role: string;
   created_at: string;
 };
@@ -247,6 +251,15 @@ async function ensureEventsTable(client?: PoolClient) {
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS receipt_file_path TEXT;
     `);
+    // อีเมลลูกค้า/เลขประจำตัวผู้เสียภาษี — optional, ใช้แสดงในใบแจ้งหนี้
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS customer_email TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS customer_tax_id TEXT;
+    `);
     // ข้อมูลเก่าที่คืนอุปกรณ์แล้วแต่ยังไม่มีใบเสร็จ ต้องกลับเข้าขั้นตอนรอชำระเงินตาม flow ใหม่
     await c.query(`
       UPDATE events
@@ -339,6 +352,15 @@ async function ensureStockReceiptsTable(client?: PoolClient) {
         received_by_role TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    `);
+    // ค่าส่ง/ค่าอื่นๆ ของล็อตที่รับเข้า — optional, ใช้รวมในต้นทุนล็อตใหม่และแสดงย้อนหลังในประวัติ
+    await c.query(`
+      ALTER TABLE stock_receipts
+      ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC NOT NULL DEFAULT 0;
+    `);
+    await c.query(`
+      ALTER TABLE stock_receipts
+      ADD COLUMN IF NOT EXISTS other_cost NUMERIC NOT NULL DEFAULT 0;
     `);
   } finally {
     if (!client) c.release();
@@ -596,7 +618,8 @@ export async function listEvents(): Promise<EventRow[]> {
     const res: QueryResult<EventRow> = await client.query(
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment,
+         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
+         customer_email, customer_tax_id, equipment,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events ORDER BY created_at DESC, id DESC`
     );
@@ -614,7 +637,8 @@ export async function getEventById(id: string): Promise<EventRow | null> {
     const res: QueryResult<EventRow> = await client.query(
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone, equipment,
+         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
+         customer_email, customer_tax_id, equipment,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events WHERE id = $1 LIMIT 1`,
       [id]
@@ -644,6 +668,8 @@ export async function insertEvent(payload: {
   attendees?: number;
   contactName?: string;
   contactPhone?: string;
+  customerEmail?: string;
+  customerTaxId?: string;
   equipment?: EventEquipmentRow[];
 }) {
   const client = await pool.connect();
@@ -653,8 +679,8 @@ export async function insertEvent(payload: {
       `INSERT INTO events (
         id, title, status_text, status_tone, created_at, description, company, place,
         start_date, end_date, items_count, organizer, branch_code, budget_thb, attendees,
-        contact_name, contact_phone, equipment, issue_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::jsonb, $19)`,
+        contact_name, contact_phone, customer_email, customer_tax_id, equipment, issue_status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb, $21)`,
       [
         payload.id, payload.title, payload.statusText, payload.statusTone,
         payload.createdAt, payload.description, payload.company, payload.place,
@@ -662,6 +688,7 @@ export async function insertEvent(payload: {
         payload.organizer ?? null, payload.branchCode ?? null,
         payload.budgetTHB ?? null, payload.attendees ?? null,
         payload.contactName ?? null, payload.contactPhone ?? null,
+        payload.customerEmail ?? null, payload.customerTaxId ?? null,
         JSON.stringify(payload.equipment ?? []), "ready",
       ]
     );
@@ -1141,6 +1168,8 @@ export async function receiveStock(payload: {
   equipmentId: string;
   quantity: number;
   unitCost: number;
+  shippingCost?: number;
+  otherCost?: number;
   supplier: string;
   poNumber?: string;
   receivedByRole: string;
@@ -1166,10 +1195,14 @@ export async function receiveStock(payload: {
     const prevQty = current.qty;
     const prevAvgCost = current.cost;
     const newQty = prevQty + payload.quantity;
+    const shippingCost = payload.shippingCost ?? 0;
+    const otherCost = payload.otherCost ?? 0;
     // สูตรเดียวกับที่ preview ใน ReceiveStockModal
+    // ต้นทุนล็อตใหม่ = (qty × unitCost) + ค่าส่ง + ค่าอื่นๆ
+    const newLotCost = payload.quantity * payload.unitCost + shippingCost + otherCost;
     const newAvgCost =
       newQty > 0
-        ? (prevQty * prevAvgCost + payload.quantity * payload.unitCost) / newQty
+        ? (prevQty * prevAvgCost + newLotCost) / newQty
         : prevAvgCost;
     const newAvailable = current.available + payload.quantity;
     const roundedAvgCost = Math.round(newAvgCost);
@@ -1187,13 +1220,13 @@ export async function receiveStock(payload: {
     await client.query(
       `INSERT INTO stock_receipts (
         id, stock_id, stock_code, stock_name, quantity, unit_cost, supplier, po_number,
-        prev_qty, prev_avg_cost, new_qty, new_avg_cost, received_by_role, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        prev_qty, prev_avg_cost, new_qty, new_avg_cost, shipping_cost, other_cost, received_by_role, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [
         `SRC-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
         current.id, current.code, current.name,
         payload.quantity, payload.unitCost, payload.supplier, payload.poNumber ?? null,
-        prevQty, prevAvgCost, newQty, newAvgCost,
+        prevQty, prevAvgCost, newQty, newAvgCost, shippingCost, otherCost,
         payload.receivedByRole, createdAt,
       ]
     );
@@ -1421,7 +1454,7 @@ export async function listStockReceiptsByStockId(
     await ensureStockReceiptsTable(client);
     const res: QueryResult<StockReceiptRow> = await client.query(
       `SELECT id, stock_id, stock_code, stock_name, quantity, unit_cost, supplier, po_number,
-         prev_qty, prev_avg_cost, new_qty, new_avg_cost, received_by_role, created_at
+         prev_qty, prev_avg_cost, new_qty, new_avg_cost, shipping_cost, other_cost, received_by_role, created_at
        FROM stock_receipts
        WHERE stock_id = $1
        ORDER BY created_at DESC`,

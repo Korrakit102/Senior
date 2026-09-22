@@ -16,6 +16,8 @@ type StockReceiptEntry = {
   id: string;
   quantity: number;
   unitCost: number;
+  shippingCost: number;
+  otherCost: number;
   supplier: string;
   poNumber: string | null;
   newAvgCost: number;
@@ -124,173 +126,173 @@ export default function StockDetailModal({ item, onClose }: Props) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl lg:max-w-4xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 p-6">
             <div>
-              <div className="text-lg font-semibold text-zinc-900">
+              <div className="text-xl font-semibold text-zinc-900">
                 รายละเอียดอุปกรณ์
               </div>
-              <div className="mt-1 text-sm text-zinc-500">{item.name}</div>
+              <div className="mt-1 text-base text-zinc-500">{item.name}</div>
             </div>
 
             <button
               onClick={onClose}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="px-5 pb-5 space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="min-h-0 overflow-y-auto px-6 py-6 space-y-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   รหัสอุปกรณ์
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <StockPill tone="blue">{item.id}</StockPill>
                   <StockPill tone="blue">{item.code}</StockPill>
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   สถานะ
                 </div>
                 <StockPill tone={statusTone}>{displayStatus}</StockPill>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   ชื่ออุปกรณ์
                 </div>
-                <div className="font-semibold text-zinc-900">{item.name}</div>
+                <div className="text-base font-semibold text-zinc-900">{item.name}</div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   ยี่ห้อ
                 </div>
-                <div className="text-zinc-800">{item.brand}</div>
+                <div className="text-base text-zinc-800">{item.brand}</div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   ประเภท
                 </div>
-                <div className="flex gap-2 items-center">
+                <div className="flex flex-wrap items-center gap-2">
                   <StockPill tone={catTone}>{item.category}</StockPill>
-                  <span className="text-zinc-500">{item.system}</span>
+                  <span className="text-base text-zinc-500">{item.system}</span>
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   โซนจัดเก็บ
                 </div>
                 <StockPill tone="blue">{item.zone}</StockPill>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   จำนวนรวม
                 </div>
-                <div className="text-lg font-semibold text-zinc-900">
+                <div className="text-xl font-semibold text-zinc-900">
                   {fmt(item.qty)} ชิ้น
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   จำนวนพร้อมใช้
                 </div>
-                <div className="text-lg font-semibold text-emerald-600">
+                <div className="text-xl font-semibold text-emerald-600">
                   {fmt(item.available)} ชิ้น
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   ค่าบริการ/วัน
                 </div>
-                <div className="text-lg font-semibold text-zinc-900">
+                <div className="text-xl font-semibold text-zinc-900">
                   {fmt(item.pricePerDay)} ฿
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-xs font-semibold text-zinc-500">
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   ราคาต้นทุน
                 </div>
-                <div className="text-lg font-semibold text-zinc-900">
+                <div className="text-xl font-semibold text-zinc-900">
                   {fmt(item.cost)} ฿
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl bg-zinc-50 p-4">
-              <div className="mb-3 text-xs font-semibold text-zinc-700">
+            <div className="rounded-xl bg-zinc-50 p-5">
+              <div className="mb-4 text-sm font-semibold text-zinc-700">
                 สรุปการใช้งาน
               </div>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
                 <div>
-                  <div className="text-2xl font-bold text-zinc-900">
+                  <div className="text-3xl font-bold text-zinc-900">
                     {fmt(item.available)}
                   </div>
-                  <div className="text-xs text-zinc-500">พร้อมใช้</div>
+                  <div className="mt-1 text-sm text-zinc-500">พร้อมใช้</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-violet-600">
+                  <div className="text-3xl font-bold text-violet-600">
                     {fmt(Math.max(0, item.qty - item.available))}
                   </div>
-                  <div className="text-xs text-zinc-500">ใช้งานอยู่ในอีเวนต์</div>
+                  <div className="mt-1 text-sm text-zinc-500">ใช้งานอยู่ในอีเวนต์</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-amber-600">
+                  <div className="text-3xl font-bold text-amber-600">
                     {fmt(item.repairing)}
                   </div>
-                  <div className="text-xs text-zinc-500">กำลังซ่อม</div>
+                  <div className="mt-1 text-sm text-zinc-500">กำลังซ่อม</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-zinc-900">
+                  <div className="text-3xl font-bold text-zinc-900">
                     {fmt(item.qty)}
                   </div>
-                  <div className="text-xs text-zinc-500">รวมทั้งหมด</div>
+                  <div className="mt-1 text-sm text-zinc-500">รวมทั้งหมด</div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-xl bg-zinc-50 p-4">
-              <div className="mb-3 text-xs font-semibold text-zinc-700">
+            <div className="rounded-xl bg-zinc-50 p-5">
+              <div className="mb-4 text-sm font-semibold text-zinc-700">
                 ประวัติการรับเข้า
               </div>
 
               {receiptsLoading && (
-                <div className="text-sm text-zinc-500">กำลังโหลด...</div>
+                <div className="text-base text-zinc-500">กำลังโหลด...</div>
               )}
 
               {!receiptsLoading && receiptsError && (
-                <div className="text-sm text-red-600">{receiptsError}</div>
+                <div className="text-base text-red-600">{receiptsError}</div>
               )}
 
               {!receiptsLoading && !receiptsError && receipts.length === 0 && (
-                <div className="text-sm text-zinc-500">
+                <div className="text-base text-zinc-500">
                   ยังไม่มีประวัติการรับเข้า
                 </div>
               )}
 
               {!receiptsLoading && !receiptsError && receipts.length > 0 && (
-                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
                   {receipts.map((r) => (
                     <div
                       key={r.id}
-                      className="rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                      className="rounded-lg border border-zinc-200 bg-white p-4 text-base"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-semibold text-zinc-900">
                           +{fmt(r.quantity)} ชิ้น
                         </span>
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-sm text-zinc-500">
                           {new Date(r.createdAt).toLocaleString("th-TH", {
                             dateStyle: "medium",
                             timeStyle: "short",
@@ -298,7 +300,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                         </span>
                       </div>
 
-                      <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-zinc-600">
+                      <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm text-zinc-600 sm:grid-cols-2 lg:grid-cols-3">
                         <div>
                           ราคาซื้อต่อหน่วย:{" "}
                           <span className="font-medium text-zinc-800">
@@ -326,6 +328,22 @@ export default function StockDetailModal({ item, onClose }: Props) {
                             {r.poNumber || "-"}
                           </span>
                         </div>
+                        {r.shippingCost > 0 && (
+                          <div>
+                            ค่าส่ง:{" "}
+                            <span className="font-medium text-zinc-800">
+                              {fmt(r.shippingCost)} ฿
+                            </span>
+                          </div>
+                        )}
+                        {r.otherCost > 0 && (
+                          <div>
+                            ค่าอื่นๆ:{" "}
+                            <span className="font-medium text-zinc-800">
+                              {fmt(r.otherCost)} ฿
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -333,37 +351,37 @@ export default function StockDetailModal({ item, onClose }: Props) {
               )}
             </div>
 
-            <div className="rounded-xl bg-zinc-50 p-4">
-              <div className="mb-3 text-xs font-semibold text-zinc-700">
+            <div className="rounded-xl bg-zinc-50 p-5">
+              <div className="mb-4 text-sm font-semibold text-zinc-700">
                 ประวัติการแจ้งซ่อม
               </div>
 
               {repairsLoading && (
-                <div className="text-sm text-zinc-500">กำลังโหลด...</div>
+                <div className="text-base text-zinc-500">กำลังโหลด...</div>
               )}
 
               {!repairsLoading && repairsError && (
-                <div className="text-sm text-red-600">{repairsError}</div>
+                <div className="text-base text-red-600">{repairsError}</div>
               )}
 
               {!repairsLoading && !repairsError && repairs.length === 0 && (
-                <div className="text-sm text-zinc-500">
+                <div className="text-base text-zinc-500">
                   ไม่มีรายการที่กำลังซ่อม
                 </div>
               )}
 
               {!repairsLoading && !repairsError && repairs.length > 0 && (
-                <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-80 space-y-3 overflow-y-auto pr-1">
                   {repairs.map((r) => (
                     <div
                       key={r.id}
-                      className="rounded-lg border border-zinc-200 bg-white p-3 text-sm"
+                      className="rounded-lg border border-zinc-200 bg-white p-4 text-base"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-semibold text-amber-700">
                           {fmt(r.quantity)} ชิ้น
                         </span>
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-sm text-zinc-500">
                           {new Date(r.createdAt).toLocaleString("th-TH", {
                             dateStyle: "medium",
                             timeStyle: "short",
@@ -371,7 +389,7 @@ export default function StockDetailModal({ item, onClose }: Props) {
                         </span>
                       </div>
 
-                      <div className="mt-2 text-xs text-zinc-600">
+                      <div className="mt-3 text-sm text-zinc-600">
                         อีเวนต์ที่เกี่ยวข้อง:{" "}
                         <span className="font-medium text-zinc-800">
                           {r.eventId || "-"}
@@ -382,15 +400,15 @@ export default function StockDetailModal({ item, onClose }: Props) {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex justify-end">
-              <button
-                onClick={onClose}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-              >
-                ปิด
-              </button>
-            </div>
+          <div className="flex shrink-0 justify-end border-t border-zinc-100 p-5">
+            <button
+              onClick={onClose}
+              className="h-11 rounded-xl border border-zinc-200 bg-white px-5 text-base font-semibold text-zinc-700 hover:bg-zinc-50"
+            >
+              ปิด
+            </button>
           </div>
         </div>
       </div>

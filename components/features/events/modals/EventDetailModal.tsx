@@ -9,6 +9,8 @@ import {
   ClipboardList,
   ExternalLink,
   FileCheck2,
+  Hash,
+  Mail,
   MapPin,
   Phone,
   Upload,
@@ -274,6 +276,22 @@ export default function EventDetailModal({
                 </div>
                 <div className="mt-1 text-sm font-semibold text-zinc-900">
                   {event.contactPhone || "-"}
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                  <Mail className="h-4 w-4" />
+                  อีเมลลูกค้า
+                </div>
+                <div className="mt-1 text-sm font-semibold text-zinc-900">
+                  {event.customerEmail || "-"}
+                </div>
+
+                <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                  <Hash className="h-4 w-4" />
+                  เลขประจำตัวผู้เสียภาษี
+                </div>
+                <div className="mt-1 text-sm font-semibold text-zinc-900">
+                  {event.customerTaxId || "-"}
                 </div>
 
                 <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-zinc-500">

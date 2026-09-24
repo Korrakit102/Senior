@@ -4,6 +4,7 @@ import React, { useCallback, useRef } from "react";
 import { X, Download } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventReportRow } from "../types";
+import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
 
 interface Props {
   open: boolean;
@@ -35,6 +36,7 @@ function todayTH(): string {
 
 export default function WorkOrderModal({ open, event, onClose }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
+  const documentSettings = useDocumentSettings(open);
 
   useBodyScrollLock(open && Boolean(event));
 
@@ -116,6 +118,7 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
               event={event}
               numDays={numDays}
               totalCost={totalCost}
+              settings={documentSettings}
               fmt={fmt}
               fmtDate={fmtDate}
             />
@@ -128,10 +131,11 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
 
 /* ─── Document content ─── */
 function WorkOrderContent({
-  docNo, today, event, numDays, totalCost, fmt, fmtDate,
+  docNo, today, event, numDays, totalCost, settings, fmt, fmtDate,
 }: {
   docNo: string; today: string; event: EventReportRow;
   numDays: number; totalCost: number;
+  settings: DocumentSettings;
   fmt: (n: number) => string; fmtDate: (d: string) => string;
 }) {
   const s = (v?: string | number | null) => (v != null && v !== "") ? String(v) : "-";
@@ -146,7 +150,7 @@ function WorkOrderContent({
       {/* ── Title ── */}
       <div style={{ textAlign: "center", marginBottom: 16, borderBottom: "2px solid #dc2626", paddingBottom: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>ใบสั่งงาน</div>
-        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>บริษัท เอช.บี.ไมซ์ จำกัด (สำนักงานใหญ่)</div>
+        <div style={{ fontSize: 12, color: "#555", marginTop: 2 }}>{settings.companyName}</div>
       </div>
 
       {/* ── Header info grid ── */}
@@ -280,7 +284,7 @@ function WorkOrderContent({
 
       {/* ── Signatures ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, marginTop: 40 }}>
-        {["บริษัท เอช.บี.ไมซ์ จำกัด (ผู้รับงาน)", event.company || "ผู้สั่งงาน"].map((name) => (
+        {[`${settings.companyName} (ผู้รับงาน)`, event.company || "ผู้สั่งงาน"].map((name) => (
           <div key={name} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #999", paddingTop: 8, marginTop: 48, color: "#555", fontSize: 10 }}>
               ลายเซ็น / {name}

@@ -5,6 +5,7 @@ import { X, Download, Pencil } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { DamageRow, EventReportRow } from "../types";
 import { fmtDateRangeThai } from "../../events/helpers";
+import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
 
 interface Props {
   open: boolean;
@@ -13,17 +14,6 @@ interface Props {
   onClose: () => void;
   onEdit: () => void;
 }
-
-const COMPANY = {
-  name: "บริษัท เอช.บี.ไมซ์ จำกัด (สำนักงานใหญ่)",
-  address: "255 หมู่ที่ 2 ตำบลสันทราย อำเภอเมืองเชียงราย จังหวัดเชียงราย 57000",
-  taxId: "0575559000545",
-  phone: "095-1450808",
-  email: "hbmiceinfo1@gmail.com",
-  bankName: "บริษัท เอช.บี.ไมซ์ จำกัด",
-  bankBranch: "ธนาคารกรุงไทย สาขาห้าแยกพ่อขุนเม็งราย ออมทรัพย์",
-  bankAccount: "539-0-49495-4",
-};
 
 function fmt(n: number): string {
   return n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -76,6 +66,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
   const printRef = React.useRef<HTMLDivElement>(null);
   const [includeVat, setIncludeVat] = useState(true);
   const [whtRate, setWhtRate] = useState<0 | 2 | 3 | 5>(3);
+  const documentSettings = useDocumentSettings(open);
 
   useBodyScrollLock(open && Boolean(damageRow));
 
@@ -205,6 +196,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
               netTotal={netTotal}
               includeVat={includeVat}
               whtRate={whtRate}
+              settings={documentSettings}
               fmt={fmt}
             />
           </div>
@@ -217,12 +209,13 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
 /* ─── Document content (rendered both on-screen & in print window) ─── */
 function DocContent({
   docTitle, docNo, today, damageRow, event,
-  grandTotal, vat, wht, netTotal, includeVat, whtRate, fmt,
+  grandTotal, vat, wht, netTotal, includeVat, whtRate, settings, fmt,
 }: {
   docTitle: string; docNo: string; today: string;
   damageRow: DamageRow; event: EventReportRow | null;
   grandTotal: number; vat: number; wht: number; netTotal: number;
   includeVat: boolean; whtRate: number;
+  settings: DocumentSettings;
   fmt: (n: number) => string;
 }) {
   const s = (v?: string | null) => v || "-";
@@ -233,10 +226,10 @@ function DocContent({
       {/* ── Company header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #dc2626", paddingBottom: 12, marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>{COMPANY.name}</div>
-          <div style={{ marginTop: 3, color: "#555", lineHeight: 1.6 }}>{COMPANY.address}</div>
-          <div style={{ color: "#555" }}>เลขประจำตัวผู้เสียภาษี: {COMPANY.taxId}</div>
-          <div style={{ color: "#555" }}>โทร: {COMPANY.phone} | อีเมล: {COMPANY.email}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>{settings.companyName}</div>
+          <div style={{ marginTop: 3, color: "#555", lineHeight: 1.6 }}>{settings.address}</div>
+          <div style={{ color: "#555" }}>เลขประจำตัวผู้เสียภาษี: {settings.taxId}</div>
+          <div style={{ color: "#555" }}>โทร: {settings.phone} | อีเมล: {settings.email}</div>
         </div>
         <div style={{ textAlign: "right", minWidth: 180 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>{docTitle}</div>
@@ -306,10 +299,11 @@ function DocContent({
           </ul>
           <div style={{ marginTop: 10, fontWeight: 600 }}>ข้อมูลการชำระเงิน</div>
           <div style={{ color: "#555", lineHeight: 1.8, marginTop: 4 }}>
-            <div>ชื่อบัญชี: {COMPANY.bankName}</div>
-            <div>{COMPANY.bankBranch}</div>
-            <div>เลขที่บัญชี: {COMPANY.bankAccount}</div>
-            <div>โอนเงินและเมลยืนยันที่ {COMPANY.email}</div>
+            <div>ชื่อบัญชี: {settings.accountName}</div>
+            <div>{settings.bankLine}</div>
+            <div>เลขที่บัญชี: {settings.accountNumber}</div>
+            {settings.swiftCode && <div>รหัส SWIFT: {settings.swiftCode}</div>}
+            <div>โอนเงินและเมลยืนยันที่ {settings.email}</div>
           </div>
         </div>
 
@@ -337,7 +331,7 @@ function DocContent({
 
       {/* ── Signatures ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, marginTop: 48 }}>
-        {[COMPANY.bankName, s(event?.company)].map((name) => (
+        {[settings.companyName, s(event?.company)].map((name) => (
           <div key={name} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #999", paddingTop: 8, marginTop: 48, color: "#555", fontSize: 10 }}>
               ลายเซ็น / {name}

@@ -4,6 +4,7 @@ import React, { useCallback, useRef, useState } from "react";
 import { X, Download } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventReportRow } from "../types";
+import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
 
 type DocType = "quotation" | "invoice";
 
@@ -13,17 +14,6 @@ interface Props {
   event: EventReportRow | null;
   onClose: () => void;
 }
-
-const COMPANY = {
-  name: "บริษัท เอช.บี.ไมซ์ จำกัด (สำนักงานใหญ่)",
-  address: "255 หมู่ที่ 2 ตำบลสันทราย อำเภอเมืองเชียงราย จังหวัดเชียงราย 57000",
-  taxId: "0575559000545",
-  phone: "095-1450808",
-  email: "hbmiceinfo1@gmail.com",
-  bankName: "บริษัท เอช.บี.ไมซ์ จำกัด",
-  bankBranch: "ธนาคารกรุงไทย สาขาห้าแยกพ่อขุนเม็งราย ออมทรัพย์",
-  bankAccount: "539-0-49495-4",
-};
 
 function categorize(category: string): 0 | 1 | 2 {
   const c = (category ?? "").toLowerCase();
@@ -54,10 +44,49 @@ function todayTH(): string {
   return new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 }
 
+const THAI_DIGITS = ["ศูนย์", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
+const THAI_PLACES = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน"];
+
+function digitsToThaiText(numStr: string): string {
+  if (numStr === "" || /^0+$/.test(numStr)) return "";
+  const len = numStr.length;
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    const digit = Number(numStr[i]);
+    if (digit === 0) continue;
+    const pos = len - 1 - i;
+    const base = pos % 6;
+    const millionSuffix = "ล้าน".repeat(Math.floor(pos / 6));
+    let word: string;
+    if (base === 0) {
+      word = pos === 0 && digit === 1 && len > 1 ? "เอ็ด" : THAI_DIGITS[digit];
+    } else if (base === 1) {
+      word = digit === 1 ? "สิบ" : digit === 2 ? "ยี่สิบ" : `${THAI_DIGITS[digit]}สิบ`;
+    } else {
+      word = `${THAI_DIGITS[digit]}${THAI_PLACES[base]}`;
+    }
+    result += word + millionSuffix;
+  }
+  return result;
+}
+
+function bahtText(amount: number): string {
+  const totalSatang = Math.max(0, Math.round((amount + Number.EPSILON) * 100));
+  const bahtPart = Math.floor(totalSatang / 100);
+  const satangPart = totalSatang % 100;
+
+  const bahtWords = bahtPart === 0 ? "ศูนย์" : digitsToThaiText(String(bahtPart));
+  if (satangPart === 0) {
+    return `${bahtWords}บาทถ้วน`;
+  }
+  return `${bahtWords}บาท${digitsToThaiText(String(satangPart))}สตางค์`;
+}
+
 export default function QuotationInvoiceModal({ open, docType, event, onClose }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const [includeVat, setIncludeVat] = useState(true);
-  const [includeWht, setIncludeWht] = useState(true);
+  const [whtRate, setWhtRate] = useState<0 | 2 | 3 | 5>(3);
+  const documentSettings = useDocumentSettings(open);
 
   useBodyScrollLock(open && Boolean(event));
 
@@ -115,7 +144,7 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
   );
   const grandTotal = sectionTotals.reduce((a, b) => a + b, 0);
   const vat = includeVat ? grandTotal * 0.07 : 0;
-  const wht = includeWht ? grandTotal * 0.03 : 0;
+  const wht = whtRate > 0 ? grandTotal * (whtRate / 100) : 0;
   const netTotal = grandTotal + vat - wht;
 
   return (
@@ -155,13 +184,17 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
             <span className="text-sm font-medium text-zinc-700">ภาษีมูลค่าเพิ่ม 7%</span>
           </label>
           <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={includeWht}
-              onChange={(e) => setIncludeWht(e.target.checked)}
-              className="h-4 w-4 accent-red-600"
-            />
-            <span className="text-sm font-medium text-zinc-700">หัก ณ ที่จ่าย 3%</span>
+            <span className="text-sm font-medium text-zinc-700">หัก ณ ที่จ่าย</span>
+            <select
+              value={whtRate}
+              onChange={(e) => setWhtRate(Number(e.target.value) as 0 | 2 | 3 | 5)}
+              className="h-8 rounded-lg border border-zinc-200 bg-white px-2 text-sm font-medium text-zinc-700 outline-none focus:ring-2 focus:ring-zinc-200"
+            >
+              <option value={0}>ไม่หัก</option>
+              <option value={2}>2%</option>
+              <option value={3}>3%</option>
+              <option value={5}>5%</option>
+            </select>
           </label>
         </div>
 
@@ -185,7 +218,8 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
               wht={wht}
               netTotal={netTotal}
               includeVat={includeVat}
-              includeWht={includeWht}
+              whtRate={whtRate}
+              settings={documentSettings}
               fmt={fmt}
               fmtDate={fmtDate}
             />
@@ -199,13 +233,14 @@ export default function QuotationInvoiceModal({ open, docType, event, onClose }:
 /* ─── Document content (rendered both on-screen & in print window) ─── */
 function DocContent({
   docTitle, docNo, today, event, numDays, sections, sectionTotals,
-  grandTotal, vat, wht, netTotal, includeVat, includeWht, fmt, fmtDate,
+  grandTotal, vat, wht, netTotal, includeVat, whtRate, settings, fmt, fmtDate,
 }: {
   docTitle: string; docNo: string; today: string;
   event: EventReportRow; numDays: number;
   sections: EventReportRow["equipment"][]; sectionTotals: number[];
   grandTotal: number; vat: number; wht: number; netTotal: number;
-  includeVat: boolean; includeWht: boolean;
+  includeVat: boolean; whtRate: number;
+  settings: DocumentSettings;
   fmt: (n: number) => string; fmtDate: (d: string) => string;
 }) {
   const s = (v?: string | null) => v || "-";
@@ -216,10 +251,10 @@ function DocContent({
       {/* ── Company header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #dc2626", paddingBottom: 12, marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>{COMPANY.name}</div>
-          <div style={{ marginTop: 3, color: "#555", lineHeight: 1.6 }}>{COMPANY.address}</div>
-          <div style={{ color: "#555" }}>เลขประจำตัวผู้เสียภาษี: {COMPANY.taxId}</div>
-          <div style={{ color: "#555" }}>โทร: {COMPANY.phone} | อีเมล: {COMPANY.email}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#dc2626" }}>{settings.companyName}</div>
+          <div style={{ marginTop: 3, color: "#555", lineHeight: 1.6 }}>{settings.address}</div>
+          <div style={{ color: "#555" }}>เลขประจำตัวผู้เสียภาษี: {settings.taxId}</div>
+          <div style={{ color: "#555" }}>โทร: {settings.phone} | อีเมล: {settings.email}</div>
         </div>
         <div style={{ textAlign: "right", minWidth: 180 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: "#dc2626" }}>{docTitle}</div>
@@ -237,6 +272,8 @@ function DocContent({
         <div style={{ gridColumn: "1/-1" }}>
           <InfoRow label="ผู้ติดต่อ" value={s(event.contactName ?? event.organizer)} />
         </div>
+        <InfoRow label="อีเมลลูกค้า" value={s(event.customerEmail)} />
+        <InfoRow label="เลขประจำตัวผู้เสียภาษี" value={s(event.customerTaxId)} />
         <InfoRow label="รหัสสาขา" value={s(event.branchCode)} />
         <InfoRow label="ชื่อการจัดงาน" value={s(event.title)} />
         <InfoRow label="สถานที่จัดงาน" value={s(event.place)} />
@@ -295,16 +332,17 @@ function DocContent({
           <div style={{ fontWeight: 600, marginBottom: 6 }}>หมายเหตุ / เงื่อนไขการชำระเงิน</div>
           <ul style={{ paddingLeft: 14, color: "#555", lineHeight: 1.8, margin: 0 }}>
             <li>ยืนยันราคา 3 วันนับจากวันที่เสนอราคา</li>
-            {includeWht && <li>ภาษีหัก ณ ที่จ่าย 3%</li>}
+            {whtRate > 0 && <li>ภาษีหัก ณ ที่จ่าย {whtRate}%</li>}
             {includeVat && <li>ภาษีมูลค่าเพิ่ม 7%</li>}
-            {includeWht && <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย 3% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>}
+            {whtRate > 0 && <li>ผู้ว่าจ้างที่เป็นบริษัท มีหน้าที่หักภาษี ณ ที่จ่าย {whtRate}% จากยอดค่าใช้จ่าย (ไม่รวม VAT) ตั้งแต่ 1,000 บาทขึ้นไป</li>}
           </ul>
           <div style={{ marginTop: 10, fontWeight: 600 }}>ข้อมูลการชำระเงิน</div>
           <div style={{ color: "#555", lineHeight: 1.8, marginTop: 4 }}>
-            <div>ชื่อบัญชี: {COMPANY.bankName}</div>
-            <div>{COMPANY.bankBranch}</div>
-            <div>เลขที่บัญชี: {COMPANY.bankAccount}</div>
-            <div>โอนเงินและเมลยืนยันที่ {COMPANY.email}</div>
+            <div>ชื่อบัญชี: {settings.accountName}</div>
+            <div>{settings.bankLine}</div>
+            <div>เลขที่บัญชี: {settings.accountNumber}</div>
+            {settings.swiftCode && <div>รหัส SWIFT: {settings.swiftCode}</div>}
+            <div>โอนเงินและเมลยืนยันที่ {settings.email}</div>
           </div>
         </div>
 
@@ -314,10 +352,15 @@ function DocContent({
             <tbody>
               <TotalRow label="ยอดรวม" value={fmt(grandTotal)} />
               {includeVat && <TotalRow label="ภาษีมูลค่าเพิ่ม 7%" value={fmt(vat)} />}
-              {includeWht && <TotalRow label="หัก ณ ที่จ่าย 3%" value={`(${fmt(wht)})`} dim />}
+              {whtRate > 0 && <TotalRow label={`หัก ณ ที่จ่าย ${whtRate}%`} value={`(${fmt(wht)})`} dim />}
               <tr style={{ borderTop: "2px solid #dc2626" }}>
                 <td style={{ padding: "6px 6px", fontWeight: 700 }}>จำนวนเงินทั้งสิ้น</td>
                 <td style={{ padding: "6px 6px", textAlign: "right", fontWeight: 700, fontSize: 14, color: "#dc2626" }}>{fmt(netTotal)}</td>
+              </tr>
+              <tr>
+                <td colSpan={2} style={{ padding: "0 6px 6px", textAlign: "right", fontSize: 10, color: "#666" }}>
+                  ({bahtText(netTotal)})
+                </td>
               </tr>
             </tbody>
           </table>
@@ -326,7 +369,7 @@ function DocContent({
 
       {/* ── Signatures ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, marginTop: 48 }}>
-        {[COMPANY.bankName, s(event.company)].map((name) => (
+        {[settings.companyName, s(event.company)].map((name) => (
           <div key={name} style={{ textAlign: "center" }}>
             <div style={{ borderTop: "1px solid #999", paddingTop: 8, marginTop: 48, color: "#555", fontSize: 10 }}>
               ลายเซ็น / {name}

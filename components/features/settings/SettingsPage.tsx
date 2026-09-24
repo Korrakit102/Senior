@@ -1,14 +1,23 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { CheckCircle2, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
-import type { SettingsState, SettingsTab } from "./types";
+import type {
+  BankingInfo,
+  CompanyInfo,
+  CompanyProfile,
+  SettingsState,
+  SettingsTab,
+} from "./types";
 import {
+  DEFAULT_COMPANY_PROFILE_ID,
   getSettingsSubtitle,
   getSettingsTitle,
   normalizeLegacySettings,
   resetSettingsToDefault,
+  selectCompanyProfile,
+  syncActiveCompanyProfile,
 } from "./helpers";
 import { DEFAULT_SETTINGS } from "./constants";
 
@@ -20,11 +29,18 @@ import SettingsTextArea from "./components/SettingsTextArea";
 import SettingsFooter from "./components/SettingsFooter";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type CompanyProfileDraft = Pick<CompanyProfile, "company" | "banking">;
+
+const INITIAL_SETTINGS = normalizeLegacySettings(DEFAULT_SETTINGS);
+
+function createProfileId() {
+  return `company-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>("company");
-  const [data, setData] = useState<SettingsState>(DEFAULT_SETTINGS);
-  const [savedData, setSavedData] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [data, setData] = useState<SettingsState>(INITIAL_SETTINGS);
+  const [savedData, setSavedData] = useState<SettingsState>(INITIAL_SETTINGS);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isCompanyInfoOpen, setIsCompanyInfoOpen] = useState(false);
 
@@ -58,25 +74,96 @@ export default function SettingsPage() {
   }, [hasChanges, saveStatus]);
 
   const confirmSave = async () => {
+    const payload = syncActiveCompanyProfile(data);
     setSaveStatus("saving");
     try {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("failed");
-      setSavedData(data);
+      setData(payload);
+      setSavedData(payload);
       setSaveStatus("saved");
     } catch {
       setSaveStatus("error");
     }
   };
 
-  const reset = async () => {
+  const reset = () => {
     const defaults = resetSettingsToDefault();
     setData(defaults);
     setSaveStatus("idle");
+  };
+
+  const updateCompanyField = (key: keyof CompanyInfo, value: string) => {
+    setData((current) =>
+      syncActiveCompanyProfile({
+        ...current,
+        company: { ...current.company, [key]: value },
+      })
+    );
+  };
+
+  const updateBankingField = (key: keyof BankingInfo, value: string) => {
+    setData((current) =>
+      syncActiveCompanyProfile({
+        ...current,
+        banking: { ...current.banking, [key]: value },
+      })
+    );
+  };
+
+  const handleSelectProfile = (profileId: string) => {
+    setData((current) => selectCompanyProfile(current, profileId));
+  };
+
+  const handleDeleteProfile = (profileId: string) => {
+    setData((current) => {
+      const synced = syncActiveCompanyProfile(current);
+      const companyProfiles = synced.companyProfiles ?? [];
+
+      if (companyProfiles.length <= 1) return synced;
+
+      const nextProfiles = companyProfiles.filter(
+        (profile) => profile.id !== profileId
+      );
+      const nextActiveProfile =
+        profileId === synced.activeCompanyProfileId
+          ? nextProfiles[0]
+          : nextProfiles.find(
+              (profile) => profile.id === synced.activeCompanyProfileId
+            ) ?? nextProfiles[0];
+
+      return {
+        ...synced,
+        company: nextActiveProfile.company,
+        banking: nextActiveProfile.banking,
+        companyProfiles: nextProfiles,
+        activeCompanyProfileId: nextActiveProfile.id,
+      };
+    });
+  };
+
+  const handleAddCompanyProfile = (profile: CompanyProfileDraft) => {
+    setData((current) => {
+      const synced = syncActiveCompanyProfile(current);
+      const companyProfiles = synced.companyProfiles ?? [];
+
+      return {
+        ...synced,
+        companyProfiles: [
+          ...companyProfiles,
+          {
+            id: createProfileId(),
+            company: profile.company,
+            banking: profile.banking,
+          },
+        ],
+      };
+    });
+    setIsCompanyInfoOpen(false);
   };
 
   const title = useMemo(() => getSettingsTitle(tab), [tab]);
@@ -84,6 +171,11 @@ export default function SettingsPage() {
 
   const company = data.company;
   const banking = data.banking;
+  const profiles = data.companyProfiles ?? [];
+  const activeProfileId =
+    data.activeCompanyProfileId ??
+    profiles[0]?.id ??
+    DEFAULT_COMPANY_PROFILE_ID;
 
   return (
     <div className="px-6 py-8">
@@ -92,6 +184,13 @@ export default function SettingsPage() {
       <SettingsTabs tab={tab} onChange={setTab} />
 
       <div className="mt-6 space-y-6">
+        <CompanyProfilePicker
+          activeProfileId={activeProfileId}
+          profiles={profiles}
+          onDelete={handleDeleteProfile}
+          onSelect={handleSelectProfile}
+        />
+
         <SettingsCard title={title} subtitle={subtitle}>
           {tab === "company" && (
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -99,36 +198,21 @@ export default function SettingsPage() {
                 label="ชื่อบริษัท (ไทย)"
                 required
                 value={company.companyNameTH}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, companyNameTH: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("companyNameTH", v)}
               />
 
               <SettingsField
                 label="ชื่อบริษัท (อังกฤษ)"
                 required
                 value={company.companyNameEN}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, companyNameEN: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("companyNameEN", v)}
               />
 
               <div className="md:col-span-2">
                 <SettingsField
                   label="คำโปรย"
                   value={company.tagline}
-                  onChange={(v) =>
-                    setData((s) => ({
-                      ...s,
-                      company: { ...s.company, tagline: v },
-                    }))
-                  }
+                  onChange={(v) => updateCompanyField("tagline", v)}
                 />
               </div>
 
@@ -136,12 +220,7 @@ export default function SettingsPage() {
                 <SettingsTextArea
                   label="ที่อยู่"
                   value={company.address}
-                  onChange={(v) =>
-                    setData((s) => ({
-                      ...s,
-                      company: { ...s.company, address: v },
-                    }))
-                  }
+                  onChange={(v) => updateCompanyField("address", v)}
                   rows={4}
                 />
               </div>
@@ -149,46 +228,26 @@ export default function SettingsPage() {
               <SettingsField
                 label="เลขประจำตัวผู้เสียภาษี"
                 value={company.taxId}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, taxId: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("taxId", v)}
               />
 
               <SettingsField
                 label="เบอร์โทรศัพท์"
                 value={company.phone}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, phone: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("phone", v)}
               />
 
               <SettingsField
                 label="อีเมล"
                 value={company.email}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, email: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("email", v)}
                 type="email"
               />
 
               <SettingsField
                 label="เว็บไซต์"
                 value={company.website}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    company: { ...s.company, website: v },
-                  }))
-                }
+                onChange={(v) => updateCompanyField("website", v)}
               />
             </div>
           )}
@@ -199,59 +258,34 @@ export default function SettingsPage() {
                 label="ชื่อธนาคาร"
                 required
                 value={banking.bankName}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    banking: { ...s.banking, bankName: v },
-                  }))
-                }
+                onChange={(v) => updateBankingField("bankName", v)}
               />
 
               <SettingsField
                 label="ชื่อบัญชี"
                 required
                 value={banking.accountName}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    banking: { ...s.banking, accountName: v },
-                  }))
-                }
+                onChange={(v) => updateBankingField("accountName", v)}
               />
 
               <SettingsField
                 label="เลขที่บัญชี"
                 required
                 value={banking.accountNumber}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    banking: { ...s.banking, accountNumber: v },
-                  }))
-                }
+                onChange={(v) => updateBankingField("accountNumber", v)}
               />
 
               <SettingsField
                 label="สาขา"
                 value={banking.branch}
-                onChange={(v) =>
-                  setData((s) => ({
-                    ...s,
-                    banking: { ...s.banking, branch: v },
-                  }))
-                }
+                onChange={(v) => updateBankingField("branch", v)}
               />
 
               <div className="md:col-span-2">
                 <SettingsField
                   label="รหัส SWIFT"
                   value={banking.swiftCode}
-                  onChange={(v) =>
-                    setData((s) => ({
-                      ...s,
-                      banking: { ...s.banking, swiftCode: v },
-                    }))
-                  }
+                  onChange={(v) => updateBankingField("swiftCode", v)}
                 />
               </div>
             </div>
@@ -266,35 +300,142 @@ export default function SettingsPage() {
         />
       </div>
 
-      <CompanyInfoModal
-        open={isCompanyInfoOpen}
-        data={data}
-        onChange={setData}
-        onClose={() => setIsCompanyInfoOpen(false)}
-      />
+      {isCompanyInfoOpen && (
+        <CompanyInfoModal
+          template={data}
+          onAddProfile={handleAddCompanyProfile}
+          onClose={() => setIsCompanyInfoOpen(false)}
+        />
+      )}
 
       <div className="h-10" />
     </div>
   );
 }
 
+function CompanyProfilePicker({
+  profiles,
+  activeProfileId,
+  onDelete,
+  onSelect,
+}: {
+  profiles: CompanyProfile[];
+  activeProfileId: string;
+  onDelete: (profileId: string) => void;
+  onSelect: (profileId: string) => void;
+}) {
+  if (profiles.length === 0) return null;
+
+  return (
+    <SettingsCard
+      title="เลือกข้อมูลบริษัท"
+      subtitle="ชุดที่เลือกจะถูกใช้ในใบเสนอราคา ใบแจ้งหนี้ ใบแจ้งหนี้ความเสียหาย และเอกสารอื่นของระบบ"
+    >
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {profiles.map((profile) => {
+          const isActive = profile.id === activeProfileId;
+
+          return (
+            <div
+              key={profile.id}
+              className={`rounded-2xl border p-4 text-left transition ${
+                isActive
+                  ? "border-red-200 bg-red-50 shadow-sm"
+                  : "border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-zinc-900">
+                    {profile.company.companyNameTH || "ไม่มีชื่อบริษัท"}
+                  </div>
+                  <div className="mt-1 truncate text-xs text-zinc-500">
+                    {profile.banking.bankName || "ไม่มีธนาคาร"}
+                    {profile.banking.accountNumber
+                      ? ` · ${profile.banking.accountNumber}`
+                      : ""}
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  {isActive && (
+                    <CheckCircle2 className="h-5 w-5 text-red-600" />
+                  )}
+                  {profiles.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label="ลบข้อมูลบริษัท"
+                      onClick={() => onDelete(profile.id)}
+                      className="grid h-7 w-7 place-items-center rounded-full border border-zinc-200 bg-white text-zinc-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isActive}
+                onClick={() => onSelect(profile.id)}
+                className={`mt-4 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                  isActive
+                    ? "bg-red-600 text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {isActive ? "กำลังใช้งาน" : "เลือกใช้"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </SettingsCard>
+  );
+}
+
 function CompanyInfoModal({
-  open,
-  data,
-  onChange,
+  template,
+  onAddProfile,
   onClose,
 }: {
-  open: boolean;
-  data: SettingsState;
-  onChange: React.Dispatch<React.SetStateAction<SettingsState>>;
+  template: SettingsState;
+  onAddProfile: (profile: CompanyProfileDraft) => void;
   onClose: () => void;
 }) {
-  useBodyScrollLock(open);
+  const [draft, setDraft] = useState<SettingsState>(() =>
+    normalizeLegacySettings(template)
+  );
 
-  if (!open) return null;
+  useBodyScrollLock(true);
 
-  const company = data.company;
-  const banking = data.banking;
+  const updateDraftCompanyField = (key: keyof CompanyInfo, value: string) => {
+    setDraft((current) =>
+      syncActiveCompanyProfile({
+        ...current,
+        company: { ...current.company, [key]: value },
+      })
+    );
+  };
+
+  const updateDraftBankingField = (key: keyof BankingInfo, value: string) => {
+    setDraft((current) =>
+      syncActiveCompanyProfile({
+        ...current,
+        banking: { ...current.banking, [key]: value },
+      })
+    );
+  };
+
+  const company = draft.company;
+  const banking = draft.banking;
+  const canSubmit = Boolean(
+    company.companyNameTH.trim() &&
+      company.companyNameEN.trim() &&
+      banking.bankName.trim() &&
+      banking.accountName.trim() &&
+      banking.accountNumber.trim()
+  );
 
   return (
     <div className="fixed inset-0 z-[220]">
@@ -333,10 +474,7 @@ function CompanyInfoModal({
                     required
                     value={company.companyNameTH}
                     onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, companyNameTH: v },
-                      }))
+                      updateDraftCompanyField("companyNameTH", v)
                     }
                   />
                   <SettingsField
@@ -344,77 +482,44 @@ function CompanyInfoModal({
                     required
                     value={company.companyNameEN}
                     onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, companyNameEN: v },
-                      }))
+                      updateDraftCompanyField("companyNameEN", v)
                     }
                   />
                   <div className="md:col-span-2">
                     <SettingsField
                       label="คำโปรย"
                       value={company.tagline}
-                      onChange={(v) =>
-                        onChange((s) => ({
-                          ...s,
-                          company: { ...s.company, tagline: v },
-                        }))
-                      }
+                      onChange={(v) => updateDraftCompanyField("tagline", v)}
                     />
                   </div>
                   <div className="md:col-span-2">
                     <SettingsTextArea
                       label="ที่อยู่"
                       value={company.address}
-                      onChange={(v) =>
-                        onChange((s) => ({
-                          ...s,
-                          company: { ...s.company, address: v },
-                        }))
-                      }
+                      onChange={(v) => updateDraftCompanyField("address", v)}
                       rows={4}
                     />
                   </div>
                   <SettingsField
                     label="เลขประจำตัวผู้เสียภาษี"
                     value={company.taxId}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, taxId: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftCompanyField("taxId", v)}
                   />
                   <SettingsField
                     label="เบอร์โทรศัพท์"
                     value={company.phone}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, phone: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftCompanyField("phone", v)}
                   />
                   <SettingsField
                     label="อีเมล"
                     value={company.email}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, email: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftCompanyField("email", v)}
                     type="email"
                   />
                   <SettingsField
                     label="เว็บไซต์"
                     value={company.website}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        company: { ...s.company, website: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftCompanyField("website", v)}
                   />
                 </div>
               </div>
@@ -428,55 +533,32 @@ function CompanyInfoModal({
                     label="ชื่อธนาคาร"
                     required
                     value={banking.bankName}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        banking: { ...s.banking, bankName: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftBankingField("bankName", v)}
                   />
                   <SettingsField
                     label="ชื่อบัญชี"
                     required
                     value={banking.accountName}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        banking: { ...s.banking, accountName: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftBankingField("accountName", v)}
                   />
                   <SettingsField
                     label="เลขที่บัญชี"
                     required
                     value={banking.accountNumber}
                     onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        banking: { ...s.banking, accountNumber: v },
-                      }))
+                      updateDraftBankingField("accountNumber", v)
                     }
                   />
                   <SettingsField
                     label="สาขา"
                     value={banking.branch}
-                    onChange={(v) =>
-                      onChange((s) => ({
-                        ...s,
-                        banking: { ...s.banking, branch: v },
-                      }))
-                    }
+                    onChange={(v) => updateDraftBankingField("branch", v)}
                   />
                   <div className="md:col-span-2">
                     <SettingsField
                       label="รหัส SWIFT"
                       value={banking.swiftCode}
-                      onChange={(v) =>
-                        onChange((s) => ({
-                          ...s,
-                          banking: { ...s.banking, swiftCode: v },
-                        }))
-                      }
+                      onChange={(v) => updateDraftBankingField("swiftCode", v)}
                     />
                   </div>
                 </div>
@@ -487,10 +569,16 @@ function CompanyInfoModal({
           <div className="flex justify-end border-t border-zinc-100 p-5">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+              disabled={!canSubmit}
+              onClick={() =>
+                onAddProfile({
+                  company,
+                  banking,
+                })
+              }
+              className="rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-500"
             >
-              ใช้ข้อมูลนี้
+              เพิ่มข้อมูลบริษัท
             </button>
           </div>
         </div>

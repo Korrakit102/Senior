@@ -19,7 +19,15 @@ export type BankingInfo = {
   swiftCode: string;
 };
 
+export type CompanyProfile = {
+  id: string;
+  company: CompanyInfo;
+  banking: BankingInfo;
+};
+
 export type SettingsState = {
   company: CompanyInfo;
   banking: BankingInfo;
+  companyProfiles?: CompanyProfile[];
+  activeCompanyProfileId?: string;
 };

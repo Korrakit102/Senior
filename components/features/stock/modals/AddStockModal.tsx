@@ -3,8 +3,9 @@
 import React, { useState } from "react";
 import { X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
-import type { AddForm, Category, ItemStatus, StockRow } from "../types";
+import type { AddForm, ItemStatus, StockRow } from "../types";
 import { getCodePrefix } from "../helpers";
+import { STATUS_OPTIONS } from "../constants";
 import StockField from "../components/StockField";
 import SystemDropdown from "../components/SystemDropdown";
 
@@ -13,6 +14,8 @@ type Props = {
   onClose: () => void;
   onAdd: (row: StockRow) => void;
   nextId: string;
+  categoryOptions: string[];
+  zoneOptions: string[];
 };
 
 export default function AddStockModal({
@@ -20,6 +23,8 @@ export default function AddStockModal({
   onClose,
   onAdd,
   nextId,
+  categoryOptions,
+  zoneOptions,
 }: Props) {
   const [form, setForm] = useState<AddForm>({
     id: nextId,
@@ -29,6 +34,7 @@ export default function AddStockModal({
     category: "ไฟฟ้า",
     typeLabel: "ระบบแสง",
     zone: "โซน A",
+    warehouseAddress: "",
     qty: "",
     pricePerDay: "",
     cost: "",
@@ -61,6 +67,7 @@ export default function AddStockModal({
     if (!form.id.trim()) e.id = "กรุณากรอกรหัส";
     if (!form.name.trim()) e.name = "กรุณากรอกชื่ออุปกรณ์";
     if (!form.brand.trim()) e.brand = "กรุณากรอกยี่ห้อ";
+    if (!form.category.trim()) e.category = "กรุณาเลือกประเภท";
     if (!form.zone.trim()) e.zone = "กรุณาเลือกโซน";
 
     if (!form.qty.trim()) e.qty = "กรุณาระบุจำนวน";
@@ -101,6 +108,7 @@ export default function AddStockModal({
       category: form.category,
       system: form.typeLabel.trim(),
       zone: form.zone,
+      warehouseAddress: form.warehouseAddress.trim(),
       status: form.status,
       qty,
       available: qty,
@@ -127,8 +135,8 @@ export default function AddStockModal({
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">
                 เพิ่มอุปกรณ์ใหม่
@@ -146,7 +154,7 @@ export default function AddStockModal({
             </button>
           </div>
 
-          <div className="px-5 pb-5">
+          <div className="min-h-0 overflow-y-auto px-5 pb-5">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <StockField label="รหัส" required error={errors.id}>
                 <input
@@ -158,20 +166,20 @@ export default function AddStockModal({
               </StockField>
 
               <StockField label="สถานะ" required>
-                <select
+                <SystemDropdown
                   value={form.status}
-                  onChange={(e) =>
+                  onChange={(v) =>
                     setForm((s) => ({
                       ...s,
-                      status: e.target.value as ItemStatus,
+                      status: v as ItemStatus,
                     }))
                   }
-                  className="h-10 w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 pr-10 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
-                >
-                  <option value="พร้อมใช้">พร้อมใช้</option>
-                  <option value="ใช้งานอยู่">ใช้งานอยู่</option>
-                  <option value="ซ่อมแซม">ซ่อมแซม</option>
-                </select>
+                  options={[...STATUS_OPTIONS]}
+                  placeholder="เลือกสถานะ..."
+                  searchPlaceholder="ค้นหาสถานะ..."
+                  emptyLabel="ไม่พบสถานะที่ค้นหา"
+                  allowCreate={false}
+                />
               </StockField>
 
               <StockField label="ชื่ออุปกรณ์" required error={errors.name}>
@@ -193,32 +201,43 @@ export default function AddStockModal({
               </StockField>
 
               <StockField label="โซน" required error={errors.zone}>
-                <select
+                <SystemDropdown
                   value={form.zone}
-                  onChange={(e) => setForm((s) => ({ ...s, zone: e.target.value }))}
-                  className="h-10 w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 pr-10 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
-                >
-                  <option value="โซน A">โซน A</option>
-                  <option value="โซน B">โซน B</option>
-                  <option value="โซน C">โซน C</option>
-                </select>
+                  onChange={(v) => setForm((s) => ({ ...s, zone: v }))}
+                  error={errors.zone}
+                  options={zoneOptions}
+                  placeholder="เลือกโซน..."
+                  searchPlaceholder="ค้นหาโซน..."
+                  emptyLabel="ไม่พบโซนที่ค้นหา"
+                  addLabel={(query) => `+ เพิ่ม "${query}" เป็นโซนใหม่`}
+                />
               </StockField>
 
-              <StockField label="ประเภท" required>
-                <select
-                  value={form.category}
+              <StockField label="ที่อยู่โกดัง">
+                <input
+                  value={form.warehouseAddress}
                   onChange={(e) =>
                     setForm((s) => ({
                       ...s,
-                      category: e.target.value as Category,
+                      warehouseAddress: e.target.value,
                     }))
                   }
-                  className="h-10 w-full appearance-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 pr-10 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-zinc-200"
-                >
-                  <option value="ไฟฟ้า">ไฟฟ้า</option>
-                  <option value="ผ้าใบ">ผ้าใบ</option>
-                  <option value="ตกแต่ง">ตกแต่ง</option>
-                </select>
+                  placeholder="ระบุที่อยู่โกดัง"
+                  className={inp()}
+                />
+              </StockField>
+
+              <StockField label="ประเภท" required error={errors.category}>
+                <SystemDropdown
+                  value={form.category}
+                  onChange={(v) => setForm((s) => ({ ...s, category: v }))}
+                  error={errors.category}
+                  options={categoryOptions}
+                  placeholder="เลือกประเภท..."
+                  searchPlaceholder="ค้นหาประเภท..."
+                  emptyLabel="ไม่พบประเภทที่ค้นหา"
+                  addLabel={(query) => `+ เพิ่ม "${query}" เป็นประเภทใหม่`}
+                />
               </StockField>
 
               <StockField label="จำนวน" required error={errors.qty}>

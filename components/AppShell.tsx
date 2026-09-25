@@ -32,7 +32,7 @@ type NotificationItem = {
 };
 
 export type ItemStatus = "พร้อมใช้" | "ใช้งานอยู่" | "ซ่อมแซม";
-export type Category = "ไฟฟ้า" | "ผ้าใบ" | "ตกแต่ง";
+export type Category = string;
 
 export type StockRow = {
   id: string;
@@ -42,6 +42,7 @@ export type StockRow = {
   category: Category;
   system: string;
   zone: string;
+  warehouseAddress: string;
   status: ItemStatus;
   qty: number;
   available: number;
@@ -51,7 +52,7 @@ export type StockRow = {
 };
 
 function toCategory(v: string): Category {
-  return v === "ไฟฟ้า" || v === "ผ้าใบ" || v === "ตกแต่ง" ? v : "ตกแต่ง";
+  return v.trim() || "ตกแต่ง";
 }
 
 function toItemStatus(v: string): ItemStatus {
@@ -60,7 +61,9 @@ function toItemStatus(v: string): ItemStatus {
     : "พร้อมใช้";
 }
 
-const initialStock: StockRow[] = [
+type InitialStockRow = Omit<StockRow, "warehouseAddress">;
+
+const initialStockRows: InitialStockRow[] = [
   {
     id: "EQ001",
     code: "LT-1234",
@@ -243,6 +246,11 @@ const initialStock: StockRow[] = [
   },
 ];
 
+const initialStock: StockRow[] = initialStockRows.map((row) => ({
+  ...row,
+  warehouseAddress: "",
+}));
+
 const tabsByRole: Record<
   Role,
   { key: Tab; label: string; icon: React.ReactNode }[]
@@ -384,6 +392,7 @@ export default function AppShell() {
         category: string;
         system: string;
         zone: string;
+        warehouseAddress?: string;
         status: string;
         qty: number;
         available: number;
@@ -411,6 +420,7 @@ export default function AppShell() {
           category: toCategory(r.category),
           system: r.system,
           zone: r.zone,
+          warehouseAddress: r.warehouseAddress ?? "",
           status: toItemStatus(r.status),
           qty: r.qty,
           available: r.available,

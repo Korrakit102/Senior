@@ -91,6 +91,7 @@ export type StockRowDb = {
   category: string;
   system: string;
   zone: string;
+  warehouse_address: string;
   status: string;
   qty: number;
   available: number;
@@ -298,6 +299,10 @@ async function ensureStockTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE stock_items
       ADD COLUMN IF NOT EXISTS repairing INTEGER NOT NULL DEFAULT 0;
+    `);
+    await c.query(`
+      ALTER TABLE stock_items
+      ADD COLUMN IF NOT EXISTS warehouse_address TEXT NOT NULL DEFAULT '';
     `);
   } finally {
     if (!client) c.release();
@@ -910,6 +915,7 @@ export async function listStockItems(): Promise<StockRowDb[]> {
          s.category,
          s.system,
          s.zone,
+         s.warehouse_address,
          s.status,
          s.qty,
          s.available,
@@ -939,6 +945,7 @@ type StockItemInput = {
   category: string;
   system: string;
   zone: string;
+  warehouseAddress?: string;
   status: string;
   qty: number;
   available: number;
@@ -1003,15 +1010,16 @@ export async function upsertStockItems(items: StockItemInput[]) {
     // Upsert each item — ON CONFLICT preserves the original created_at
     for (const item of items) {
       await client.query(
-        `INSERT INTO stock_items (id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `INSERT INTO stock_items (id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET
            code = EXCLUDED.code, name = EXCLUDED.name, brand = EXCLUDED.brand,
            category = EXCLUDED.category, system = EXCLUDED.system, zone = EXCLUDED.zone,
+           warehouse_address = EXCLUDED.warehouse_address,
            status = EXCLUDED.status, qty = EXCLUDED.qty, available = EXCLUDED.available,
            price_per_day = EXCLUDED.price_per_day, cost = EXCLUDED.cost, repairing = EXCLUDED.repairing`,
         [item.id, item.code, item.name, item.brand, item.category, item.system,
-         item.zone, item.status, item.qty, item.available, item.pricePerDay, item.cost, item.repairing]
+         item.zone, item.warehouseAddress ?? "", item.status, item.qty, item.available, item.pricePerDay, item.cost, item.repairing]
       );
     }
 
@@ -1073,7 +1081,7 @@ export async function adjustStock(
                available = GREATEST(0, available - $2::int),
                status = CASE WHEN GREATEST(0, available - $2::int) = 0 THEN 'ใช้งานอยู่' ELSE status END
              WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+             RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
            )
            SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
           [item.name, item.qty]
@@ -1094,7 +1102,7 @@ export async function adjustStock(
                available = LEAST(qty, available + $2::int),
                status = CASE WHEN available + $2::int > 0 THEN 'พร้อมใช้' ELSE status END
              WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+             RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
            )
            SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
           [item.name, item.qty]
@@ -1139,7 +1147,7 @@ export async function adjustStock(
                END
              FROM calc
              WHERE s.name = $1
-             RETURNING s.id, s.code, s.name, s.brand, s.category, s.system, s.zone, s.status, s.qty, s.available, s.price_per_day, s.cost, s.repairing
+             RETURNING s.id, s.code, s.name, s.brand, s.category, s.system, s.zone, s.warehouse_address, s.status, s.qty, s.available, s.price_per_day, s.cost, s.repairing
            )
            SELECT upd.*, calc.old_qty, calc.old_repairing, calc.damaged_qty FROM upd, calc`,
           [item.name, item.qty]
@@ -1182,7 +1190,7 @@ export async function receiveStock(payload: {
     await client.query("BEGIN");
 
     const currentRes = await client.query<StockRowDb>(
-      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+      `SELECT id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
        FROM stock_items WHERE id = $1 FOR UPDATE`,
       [payload.equipmentId]
     );
@@ -1211,7 +1219,7 @@ export async function receiveStock(payload: {
       `UPDATE stock_items
        SET qty = $2, available = $3, cost = $4
        WHERE id = $1
-       RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
+       RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing`,
       [payload.equipmentId, newQty, newAvailable, roundedAvgCost]
     );
     const updated = updatedRes.rows[0];
@@ -1353,7 +1361,7 @@ export async function resolveRepairingStock(payload: {
     const note = payload.note?.trim() || null;
 
     const currentRes = await client.query<StockRowDb>(
-      `SELECT id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing
+      `SELECT id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
        FROM stock_items WHERE LOWER(TRIM(name)) = LOWER(TRIM($1)) FOR UPDATE`,
       [lot.item_name]
     );
@@ -1406,7 +1414,7 @@ export async function resolveRepairingStock(payload: {
         `UPDATE stock_items
          SET qty = $2, available = $3, repairing = $4, status = $5
          WHERE id = $1
-         RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
+         RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing`,
         [current.id, newQty, newAvailable, newRepairing, newStatus]
       );
       updated = updRes.rows[0];
@@ -1425,7 +1433,7 @@ export async function resolveRepairingStock(payload: {
         `UPDATE stock_items
          SET repairing = $2, status = $3
          WHERE id = $1
-         RETURNING id, code, name, brand, category, system, zone, status, qty, available, price_per_day, cost, repairing`,
+         RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing`,
         [current.id, newRepairing, newStatus]
       );
       updated = updRes.rows[0];

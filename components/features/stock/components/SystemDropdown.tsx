@@ -8,11 +8,28 @@ type Props = {
   value: string;
   onChange: (v: string) => void;
   error?: string;
+  options?: string[];
+  placeholder?: string;
+  searchPlaceholder?: string;
+  emptyLabel?: string;
+  addLabel?: (query: string) => string;
+  allowCreate?: boolean;
 };
 
-export default function SystemDropdown({ value, onChange, error }: Props) {
+export default function SystemDropdown({
+  value,
+  onChange,
+  error,
+  options = SYSTEM_OPTIONS,
+  placeholder = "เลือกหมวดหมู่...",
+  searchPlaceholder = "ค้นหาหมวดหมู่...",
+  emptyLabel = "ไม่พบหมวดหมู่ที่ค้นหา",
+  addLabel = (query) => `+ เพิ่ม "${query}" เป็นหมวดหมู่ใหม่`,
+  allowCreate = true,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [dropUp, setDropUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +52,12 @@ export default function SystemDropdown({ value, onChange, error }: Props) {
   }, []);
 
   const openDropdown = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setDropUp(spaceBelow < 280 && spaceAbove > spaceBelow);
+    }
     setQuery("");
     setOpen(true);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -52,9 +75,9 @@ export default function SystemDropdown({ value, onChange, error }: Props) {
 
   const filtered = useMemo(() => {
     const kw = query.trim().toLowerCase();
-    if (!kw) return SYSTEM_OPTIONS;
-    return SYSTEM_OPTIONS.filter((o) => o.toLowerCase().includes(kw));
-  }, [query]);
+    if (!kw) return options;
+    return options.filter((o) => o.toLowerCase().includes(kw));
+  }, [options, query]);
 
   return (
     <div ref={ref} className="relative">
@@ -71,7 +94,7 @@ export default function SystemDropdown({ value, onChange, error }: Props) {
         ].join(" ")}
       >
         <span className={value ? "text-sm text-zinc-900" : "text-sm text-zinc-400"}>
-          {value || "เลือกหมวดหมู่..."}
+          {value || placeholder}
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-150 ${
@@ -81,14 +104,18 @@ export default function SystemDropdown({ value, onChange, error }: Props) {
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[200] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
+        <div
+          className={`absolute left-0 right-0 z-[200] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl ${
+            dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
+          }`}
+        >
           <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-2.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ค้นหาหมวดหมู่..."
+              placeholder={searchPlaceholder}
               className="flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
             />
             {query && (
@@ -104,19 +131,19 @@ export default function SystemDropdown({ value, onChange, error }: Props) {
 
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-5 text-center">
-              <span className="text-sm text-zinc-400">ไม่พบหมวดหมู่ที่ค้นหา</span>
-              {query.trim() && (
+              <span className="text-sm text-zinc-400">{emptyLabel}</span>
+              {allowCreate && query.trim() && (
                 <button
                   type="button"
                   onClick={() => select(query.trim())}
                   className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
                 >
-                  + เพิ่ม "{query.trim()}" เป็นหมวดหมู่ใหม่
+                  {addLabel(query.trim())}
                 </button>
               )}
             </div>
           ) : (
-            <ul className="max-h-52 overflow-auto py-1">
+            <ul className="max-h-44 overflow-auto py-1">
               {filtered.map((opt) => {
                 const active = opt === value;
 

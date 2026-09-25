@@ -195,6 +195,15 @@ export default function StockDetailModal({ item, onClose }: Props) {
 
               <div>
                 <div className="mb-2 text-sm font-semibold text-zinc-500">
+                  ที่อยู่โกดัง
+                </div>
+                <div className="text-base text-zinc-800">
+                  {item.warehouseAddress || "-"}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-sm font-semibold text-zinc-500">
                   จำนวนรวม
                 </div>
                 <div className="text-xl font-semibold text-zinc-900">

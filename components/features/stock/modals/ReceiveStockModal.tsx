@@ -321,9 +321,9 @@ export default function ReceiveStockModal({
         onClick={submitting || submitSuccess ? undefined : onClose}
       />
 
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto overscroll-contain p-4">
+        <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">
                 รับเข้าสต็อก
@@ -342,7 +342,7 @@ export default function ReceiveStockModal({
             </button>
           </div>
 
-          <div className="px-5 pb-5 space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto px-5 pb-5">
             {/* equipment search */}
             <StockField
               label="ค้นหาอุปกรณ์ (ชื่อหรือ SKU)"

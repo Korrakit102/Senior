@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { ArrowRight, Package2, Plus, X } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { ArrowRight, ChevronDown, Package2, Plus, Search, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type {
   EquipmentItem,
@@ -122,21 +122,14 @@ export default function QuickIssueModal({
                 <label className="mb-1 block text-xs font-semibold text-zinc-700">
                   เลือกอีเวนต์ <span className="text-red-600">*</span>
                 </label>
-                <select
+                <EventDropdown
                   value={selectedEventId}
-                  onChange={(e) => {
-                    setSelectedEventId(e.target.value);
+                  options={eventOptions}
+                  onChange={(eventId) => {
+                    setSelectedEventId(eventId);
                     setItems([]);
                   }}
-                  className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-emerald-100"
-                >
-                  <option value="">เลือกอีเวนต์...</option>
-                  {eventOptions.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {event.title} ({event.code}) - {event.company}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -254,5 +247,197 @@ export default function QuickIssueModal({
         </div>
       </div>
     </>
+  );
+}
+
+function EventDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: IssueEvent[];
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [dropUp, setDropUp] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    const onDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const selected = options.find((event) => event.id === value);
+  const selectedLabel = selected
+    ? `${selected.title} (${selected.code}) - ${selected.company}`
+    : "";
+
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return options;
+
+    return options.filter((event) =>
+      [event.title, event.code, event.company]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword)
+    );
+  }, [options, query]);
+
+  const openDropdown = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setDropUp(spaceBelow < 280 && spaceAbove > spaceBelow);
+    }
+    setQuery("");
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const closeDropdown = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
+  const selectEvent = (eventId: string) => {
+    onChange(eventId);
+    closeDropdown();
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => (open ? closeDropdown() : openDropdown())}
+        className={[
+          "flex h-11 w-full items-center justify-between gap-2 rounded-xl border bg-zinc-50 px-3 text-left",
+          open
+            ? "border-emerald-200 ring-2 ring-emerald-100"
+            : "border-zinc-200 hover:border-zinc-300",
+        ].join(" ")}
+      >
+        <span className={selectedLabel ? "truncate text-sm text-zinc-900" : "text-sm text-zinc-400"}>
+          {selectedLabel || "เลือกอีเวนต์..."}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className={`absolute left-0 right-0 z-[200] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl ${
+            dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
+          }`}
+        >
+          <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-2.5">
+            <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหาอีเวนต์..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-zinc-300 hover:text-zinc-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <ul className="max-h-56 overflow-auto py-1">
+            <li>
+              <button
+                type="button"
+                onClick={() => selectEvent("")}
+                className={[
+                  "flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition",
+                  value === ""
+                    ? "bg-blue-50 font-semibold text-blue-700"
+                    : "text-zinc-700 hover:bg-zinc-50",
+                ].join(" ")}
+              >
+                <span
+                  className={`flex h-2 w-2 shrink-0 rounded-full ${
+                    value === "" ? "bg-blue-500" : "bg-transparent"
+                  }`}
+                />
+                เลือกอีเวนต์...
+              </button>
+            </li>
+
+            {filtered.map((event) => {
+              const active = event.id === value;
+
+              return (
+                <li key={event.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectEvent(event.id)}
+                    className={[
+                      "flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition",
+                      active
+                        ? "bg-blue-50 font-semibold text-blue-700"
+                        : "text-zinc-700 hover:bg-zinc-50",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={`flex h-2 w-2 shrink-0 rounded-full ${
+                        active ? "bg-blue-500" : "bg-transparent"
+                      }`}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate">
+                        {event.title} ({event.code})
+                      </span>
+                      <span className="block truncate text-xs font-normal text-zinc-400">
+                        {event.company}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <li className="px-3 py-5 text-center text-sm text-zinc-400">
+                ไม่พบอีเวนต์ที่ค้นหา
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }

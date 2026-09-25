@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useRef } from "react";
-import { X, Download } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Download, Plus, Search, Trash2, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { EventReportRow } from "../types";
 import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
@@ -34,13 +34,144 @@ function todayTH(): string {
   return new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 }
 
+type SalesTargetRow = {
+  id: string;
+  displayModel: string;
+  displayQty: string;
+  testDriveModel: string;
+  testDriveQty: string;
+};
+
+type SalesTargetTotals = {
+  bookingTarget: string;
+  interestedTarget: string;
+};
+
+function createSalesTargetRow(id: string): SalesTargetRow {
+  return {
+    id,
+    displayModel: "",
+    displayQty: "",
+    testDriveModel: "",
+    testDriveQty: "",
+  };
+}
+
+function cloneSalesTargetRows(rows: SalesTargetRow[]): SalesTargetRow[] {
+  return rows.map((row) => ({ ...row }));
+}
+
+const EMPTY_SALES_TARGET_TOTALS: SalesTargetTotals = {
+  bookingTarget: "",
+  interestedTarget: "",
+};
+
+const SALES_TARGET_COLUMNS: Array<keyof Omit<SalesTargetRow, "id">> = [
+  "displayModel",
+  "displayQty",
+  "testDriveModel",
+  "testDriveQty",
+];
+
+const DEFAULT_CAR_MODELS = [
+  "D-MAX",
+  "MU-X",
+  "D-MAX X-Series",
+  "D-MAX V-Cross",
+  "D-MAX Spark",
+];
+
 export default function WorkOrderModal({ open, event, onClose }: Props) {
-  const printRef = useRef<HTMLDivElement>(null);
   const documentSettings = useDocumentSettings(open);
 
   useBodyScrollLock(open && Boolean(event));
 
-  const docNo = event ? `WO-${event.id}` : "-";
+  if (!open || !event) return null;
+
+  return (
+    <WorkOrderModalBody
+      key={event.id}
+      event={event}
+      onClose={onClose}
+      documentSettings={documentSettings}
+    />
+  );
+}
+
+function WorkOrderModalBody({
+  event,
+  onClose,
+  documentSettings,
+}: {
+  event: EventReportRow;
+  onClose: () => void;
+  documentSettings: DocumentSettings;
+}) {
+  const printRef = useRef<HTMLDivElement>(null);
+  const [draftSalesTargets, setDraftSalesTargets] = useState<SalesTargetRow[]>(() => [
+    createSalesTargetRow("sales-target-1"),
+  ]);
+  const [draftSalesTargetTotals, setDraftSalesTargetTotals] =
+    useState<SalesTargetTotals>(EMPTY_SALES_TARGET_TOTALS);
+  const [savedSalesTargets, setSavedSalesTargets] = useState<SalesTargetRow[]>(() => [
+    createSalesTargetRow("sales-target-1"),
+  ]);
+  const [savedSalesTargetTotals, setSavedSalesTargetTotals] =
+    useState<SalesTargetTotals>(EMPTY_SALES_TARGET_TOTALS);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [carModelOptions, setCarModelOptions] = useState(DEFAULT_CAR_MODELS);
+
+  const docNo = `WO-${event.id}`;
+
+  const updateSalesTarget = (
+    rowId: string,
+    key: keyof Omit<SalesTargetRow, "id">,
+    value: string
+  ) => {
+    setSaveMessage("");
+    setDraftSalesTargets((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, [key]: value } : row))
+    );
+  };
+
+  const addSalesTargetRow = () => {
+    setSaveMessage("");
+    setDraftSalesTargets((current) => [
+      ...current,
+      createSalesTargetRow(`sales-target-${current.length + 1}-${Date.now()}`),
+    ]);
+  };
+
+  const removeSalesTargetRow = (rowId: string) => {
+    setSaveMessage("");
+    setDraftSalesTargets((current) =>
+      current.length > 1 ? current.filter((row) => row.id !== rowId) : current
+    );
+  };
+
+  const updateSalesTargetTotals = (
+    key: keyof SalesTargetTotals,
+    value: string
+  ) => {
+    setSaveMessage("");
+    setDraftSalesTargetTotals((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveSalesTargets = () => {
+    setSavedSalesTargets(cloneSalesTargetRows(draftSalesTargets));
+    setSavedSalesTargetTotals({ ...draftSalesTargetTotals });
+    setSaveMessage("บันทึกเป้าหมายยอดขายแล้ว");
+  };
+
+  const addCarModelOption = (value: string) => {
+    const next = value.trim();
+    if (!next) return;
+    setCarModelOptions((current) =>
+      current.some((option) => option.toLowerCase() === next.toLowerCase())
+        ? current
+        : [...current, next]
+    );
+  };
 
   const handleDownload = useCallback(() => {
     if (!printRef.current) return;
@@ -74,19 +205,18 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
     win.document.close();
   }, [docNo]);
 
-  if (!open || !event) return null;
-
   const numDays = daysBetween(event.startDate, event.endDate);
   const totalCost = event.equipment.reduce(
     (sum, eq) => sum + eq.qty * eq.pricePerDayTHB * numDays, 0
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-8">
-      <div className="w-full max-w-4xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[200] bg-black/50 p-2 sm:p-4">
+      <div className="flex h-full min-h-0 items-start justify-center overflow-y-auto overscroll-contain py-4 sm:py-6">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
 
         {/* Modal header */}
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-6 py-4">
           <div>
             <div className="text-base font-semibold text-zinc-900">ใบสั่งงาน</div>
             <div className="mt-0.5 text-xs text-zinc-400">{event.title} · {event.company}</div>
@@ -105,6 +235,136 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
           </div>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="border-b border-zinc-100 bg-zinc-50/60 px-6 py-5">
+          <div className="mb-3 text-sm font-semibold text-zinc-900">
+            แก้ไขเป้าหมายยอดขาย
+          </div>
+          <div className="space-y-3">
+            {draftSalesTargets.map((row, index) => (
+              <div
+                key={row.id}
+                className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm"
+              >
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold text-zinc-500">
+                    รุ่นรถแถวที่ {index + 1}
+                  </div>
+                  {draftSalesTargets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSalesTargetRow(row.id)}
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-red-100 px-2.5 text-xs font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      ลบ
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+                  <div className="md:col-span-2">
+                    <EditableFieldLabel>ระบุรุ่นรถโชว์</EditableFieldLabel>
+                    <CarModelDropdown
+                      value={row.displayModel}
+                      options={carModelOptions}
+                      onChange={(value) =>
+                        updateSalesTarget(row.id, "displayModel", value)
+                      }
+                      onAddOption={addCarModelOption}
+                    />
+                  </div>
+
+                  <div>
+                    <EditableFieldLabel>จำนวน</EditableFieldLabel>
+                    <EditableInput
+                      value={row.displayQty}
+                      onChange={(value) =>
+                        updateSalesTarget(row.id, "displayQty", value)
+                      }
+                      placeholder="จำนวน"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <EditableFieldLabel>ระบุรุ่นรถทดลองขับ</EditableFieldLabel>
+                    <CarModelDropdown
+                      value={row.testDriveModel}
+                      options={carModelOptions}
+                      onChange={(value) =>
+                        updateSalesTarget(row.id, "testDriveModel", value)
+                      }
+                      onAddOption={addCarModelOption}
+                    />
+                  </div>
+
+                  <div>
+                    <EditableFieldLabel>จำนวน</EditableFieldLabel>
+                    <EditableInput
+                      value={row.testDriveQty}
+                      onChange={(value) =>
+                        updateSalesTarget(row.id, "testDriveQty", value)
+                      }
+                      placeholder="จำนวน"
+                    />
+                  </div>
+
+                </div>
+              </div>
+            ))}
+
+            <div className="grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm md:grid-cols-2">
+              <div>
+                <EditableFieldLabel>เป้าจองรวม</EditableFieldLabel>
+                <EditableInput
+                  value={draftSalesTargetTotals.bookingTarget}
+                  onChange={(value) =>
+                    updateSalesTargetTotals("bookingTarget", value)
+                  }
+                  placeholder="เป้าจองรวม"
+                />
+              </div>
+
+              <div>
+                <EditableFieldLabel>ยอดสนใจ</EditableFieldLabel>
+                <EditableInput
+                  value={draftSalesTargetTotals.interestedTarget}
+                  onChange={(value) =>
+                    updateSalesTargetTotals("interestedTarget", value)
+                  }
+                  placeholder="ยอดสนใจ"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={addSalesTargetRow}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                <Plus className="h-4 w-4" />
+                เพิ่มรุ่นรถ
+              </button>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {saveMessage && (
+                  <span className="text-xs font-medium text-emerald-600">
+                    {saveMessage}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveSalesTargets}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                >
+                  บันทึก
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Document preview */}
         <div className="p-6">
           <div
@@ -118,23 +378,248 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
               event={event}
               numDays={numDays}
               totalCost={totalCost}
+              salesTargets={savedSalesTargets}
+              salesTargetTotals={savedSalesTargetTotals}
               settings={documentSettings}
               fmt={fmt}
               fmtDate={fmtDate}
             />
           </div>
         </div>
+        </div>
       </div>
+      </div>
+    </div>
+  );
+}
+
+function EditableFieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-1 text-xs font-semibold text-zinc-700">{children}</div>
+  );
+}
+
+function EditableInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100"
+    />
+  );
+}
+
+function CarModelDropdown({
+  value,
+  options,
+  onChange,
+  onAddOption,
+}: {
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  onAddOption: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [dropUp, setDropUp] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  const normalizedOptions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return options
+      .map((option) => option.trim())
+      .filter((option) => {
+        const key = option.toLowerCase();
+        if (!option || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [options]);
+
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return normalizedOptions;
+    return normalizedOptions.filter((option) =>
+      option.toLowerCase().includes(keyword)
+    );
+  }, [normalizedOptions, query]);
+
+  const queryText = query.trim();
+  const exactExists = normalizedOptions.some(
+    (option) => option.toLowerCase() === queryText.toLowerCase()
+  );
+
+  const openDropdown = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) {
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      setDropUp(spaceBelow < 280 && spaceAbove > spaceBelow);
+    }
+    setQuery("");
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const closeDropdown = () => {
+    setOpen(false);
+    setQuery("");
+  };
+
+  const select = (option: string) => {
+    onChange(option);
+    closeDropdown();
+  };
+
+  const addOption = () => {
+    if (!queryText) return;
+    onAddOption(queryText);
+    select(queryText);
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => (open ? closeDropdown() : openDropdown())}
+        className={[
+          "flex h-10 w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left",
+          open
+            ? "border-zinc-400 ring-2 ring-zinc-200"
+            : "border-zinc-200 hover:border-zinc-300",
+        ].join(" ")}
+      >
+        <span className={value ? "truncate text-sm text-zinc-900" : "text-sm text-zinc-400"}>
+          {value || "เลือกรุ่นรถ..."}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className={`absolute left-0 right-0 z-[220] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl ${
+            dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
+          }`}
+        >
+          <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-2.5">
+            <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหารุ่นรถ..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-zinc-300 hover:text-zinc-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <ul className="max-h-44 overflow-auto py-1">
+            {filtered.map((option) => {
+              const active = option === value;
+
+              return (
+                <li key={option}>
+                  <button
+                    type="button"
+                    onClick={() => select(option)}
+                    className={[
+                      "flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm transition",
+                      active
+                        ? "bg-blue-50 font-semibold text-blue-700"
+                        : "text-zinc-700 hover:bg-zinc-50",
+                    ].join(" ")}
+                  >
+                    <span
+                      className={`flex h-2 w-2 shrink-0 rounded-full ${
+                        active ? "bg-blue-500" : "bg-transparent"
+                      }`}
+                    />
+                    {option}
+                  </button>
+                </li>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <li className="px-3 py-4 text-center text-sm text-zinc-400">
+                ไม่พบรุ่นรถที่ค้นหา
+              </li>
+            )}
+          </ul>
+
+          {queryText && !exactExists && (
+            <div className="border-t border-zinc-100 p-2">
+              <button
+                type="button"
+                onClick={addOption}
+                className="w-full rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                {`+ เพิ่ม "${queryText}" เป็นรุ่นรถใหม่`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
 /* ─── Document content ─── */
 function WorkOrderContent({
-  docNo, today, event, numDays, totalCost, settings, fmt, fmtDate,
+  docNo, today, event, numDays, totalCost, salesTargets, salesTargetTotals, settings, fmt, fmtDate,
 }: {
   docNo: string; today: string; event: EventReportRow;
   numDays: number; totalCost: number;
+  salesTargets: SalesTargetRow[];
+  salesTargetTotals: SalesTargetTotals;
   settings: DocumentSettings;
   fmt: (n: number) => string; fmtDate: (d: string) => string;
 }) {
@@ -142,6 +627,10 @@ function WorkOrderContent({
 
   const cell = (v: string) => (
     <td style={{ border: "1px solid #e4e4e7", padding: "3px 6px", textAlign: "center" }}>{v || "-"}</td>
+  );
+
+  const mergedCell = (v: string, rowSpan: number) => (
+    <td rowSpan={rowSpan} style={{ border: "1px solid #e4e4e7", padding: "3px 6px", textAlign: "center", verticalAlign: "middle" }}>{v || "-"}</td>
   );
 
   return (
@@ -168,10 +657,6 @@ function WorkOrderContent({
           <tr>
             <Cell label="หัวหน้าโครงการ" value={s(event.contactName ?? event.organizer)} />
             <Cell label="เบอร์ติดต่อ" value={s(event.contactPhone)} />
-          </tr>
-          <tr>
-            <Cell label="เข้าโครงการ TIS" value="-" />
-            <Cell label="ชื่อโครงการตาม TIS" value="-" />
           </tr>
           <tr>
             <td colSpan={4} style={{ border: "1px solid #e4e4e7", padding: "3px 8px" }}>
@@ -260,15 +745,25 @@ function WorkOrderContent({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 9.5 }}>
         <thead>
           <tr className="print-red-tint" style={{ background: "#fef2f2", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
-            {["ระบุรุ่นรถโชว์", "จำนวน", "ระบุรุ่นรถทดลองขับ", "จำนวน", "เป้าจองรวม", "ยอดสนใจ", "เป้ารถกระบะ", "เป้า MU-X", "เป้า 4×4", "เป้ารถบรรทุก"].map((h) => (
-              <th key={h} style={{ border: "1px solid #e4e4e7", padding: "4px 4px", textAlign: "center", whiteSpace: "nowrap" }}>{h}</th>
+            {["ระบุรุ่นรถโชว์", "จำนวน", "ระบุรุ่นรถทดลองขับ", "จำนวน", "เป้าจองรวม", "ยอดสนใจ"].map((h, index) => (
+              <th key={`${h}-${index}`} style={{ border: "1px solid #e4e4e7", padding: "4px 4px", textAlign: "center", whiteSpace: "nowrap" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          <tr>
-            {Array.from({ length: 10 }, () => cell(""))}
-          </tr>
+          {salesTargets.map((row, index) => (
+            <tr key={row.id}>
+              {SALES_TARGET_COLUMNS.map((column) => (
+                <React.Fragment key={column}>{cell(row[column])}</React.Fragment>
+              ))}
+              {index === 0 && (
+                <>
+                  {mergedCell(salesTargetTotals.bookingTarget, salesTargets.length)}
+                  {mergedCell(salesTargetTotals.interestedTarget, salesTargets.length)}
+                </>
+              )}
+            </tr>
+          ))}
         </tbody>
       </table>
 

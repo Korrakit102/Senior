@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Role, StockRow, ItemStatus, Category } from "./types";
+import type { Role, StockRow, ItemStatus } from "./types";
 import {
   filterStockRows,
+  getCategoryOptions,
   getFilteredStockStatusParts,
   getNextStockId,
   getStockStats,
+  getZoneOptions,
   exportStockToExcel,
 } from "./helpers";
 
@@ -37,7 +39,7 @@ export default function StockPage({
 }: Props) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"ทั้งหมด" | ItemStatus>("ทั้งหมด");
-  const [category, setCategory] = useState<"ทั้งหมด" | Category>("ทั้งหมด");
+  const [categories, setCategories] = useState<string[]>([]);
 
   const [addOpen, setAddOpen] = useState(false);
   const [editItem, setEditItem] = useState<StockRow | null>(null);
@@ -48,8 +50,16 @@ export default function StockPage({
 
   // filter
   const rows = useMemo(
-    () => filterStockRows(stockData, q, status, category),
-    [stockData, q, status, category]
+    () => filterStockRows(stockData, q, status, categories),
+    [stockData, q, status, categories]
+  );
+  const categoryOptions = useMemo(
+    () => getCategoryOptions(stockData),
+    [stockData]
+  );
+  const zoneOptions = useMemo(
+    () => getZoneOptions(stockData),
+    [stockData]
   );
   const displayRowCount = useMemo(
     () =>
@@ -108,6 +118,8 @@ export default function StockPage({
         onClose={() => setAddOpen(false)}
         onAdd={handleAdd}
         nextId={nextId}
+        categoryOptions={categoryOptions}
+        zoneOptions={zoneOptions}
       />
 
       <EditStockModal
@@ -115,6 +127,8 @@ export default function StockPage({
         item={editItem}
         onClose={() => setEditItem(null)}
         onUpdate={handleUpdate}
+        categoryOptions={categoryOptions}
+        zoneOptions={zoneOptions}
       />
 
       <StockDetailModal
@@ -160,10 +174,11 @@ export default function StockPage({
       <StockFilters
         q={q}
         status={status}
-        category={category}
+        categories={categories}
+        categoryOptions={categoryOptions}
         onQChange={setQ}
         onStatusChange={setStatus}
-        onCategoryChange={setCategory}
+        onCategoryChange={setCategories}
         showing={displayRowCount}
         total={totalDisplayRowCount}
         totalValue={totalStockValue}

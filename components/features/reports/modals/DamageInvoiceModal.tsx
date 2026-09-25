@@ -118,11 +118,12 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
   const netTotal = grandTotal + vat - wht;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/50 p-4 py-8">
-      <div className="w-full max-w-4xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-[200] bg-black/50 p-2 sm:p-4">
+      <div className="flex h-full min-h-0 items-start justify-center overflow-y-auto overscroll-contain py-4 sm:py-6">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
 
         {/* Modal header */}
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-6 py-4">
           <div>
             <div className="text-base font-semibold text-zinc-900">{docTitle}</div>
             <div className="mt-0.5 text-xs text-zinc-400">
@@ -150,6 +151,7 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
           </div>
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {/* Tax options */}
         <div className="flex items-center gap-6 border-b border-zinc-100 bg-zinc-50 px-6 py-3">
           <span className="text-xs font-medium text-zinc-500">ตัวเลือกภาษี:</span>
@@ -201,6 +203,8 @@ export default function DamageInvoiceModal({ open, damageRow, event, onClose, on
             />
           </div>
         </div>
+        </div>
+      </div>
       </div>
     </div>
   );

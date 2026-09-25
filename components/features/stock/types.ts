@@ -4,7 +4,7 @@ import type { Role } from "../../AppShell";
 export type { Role };
 
 export type ItemStatus = "พร้อมใช้" | "ใช้งานอยู่" | "ซ่อมแซม";
-export type Category = "ไฟฟ้า" | "ผ้าใบ" | "ตกแต่ง";
+export type Category = string;
 
 export type StockRow = {
   id: string;
@@ -14,6 +14,7 @@ export type StockRow = {
   category: Category;
   system: string;
   zone: string;
+  warehouseAddress: string;
   status: ItemStatus;
   qty: number;
   available: number;
@@ -33,6 +34,7 @@ export type AddForm = {
   category: Category;
   typeLabel: string;
   zone: string;
+  warehouseAddress: string;
   qty: string;
   pricePerDay: string;
   cost: string;
@@ -45,6 +47,7 @@ export type EditForm = {
   category: Category;
   typeLabel: string;
   zone: string;
+  warehouseAddress: string;
   qty: string;
   available: string;
   pricePerDay: string;

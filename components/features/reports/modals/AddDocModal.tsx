@@ -96,9 +96,9 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/40 p-4">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-6 py-4">
           <div className="flex items-center gap-2 text-base font-semibold text-zinc-900">
             <FilePlus className="h-5 w-5 text-red-600" />
             เพิ่มเอกสาร
@@ -111,7 +111,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
           </button>
         </div>
 
-        <div className="space-y-4 px-6 py-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto px-6 py-5">
           <div>
             <label className="mb-1.5 block text-sm font-semibold text-zinc-700">
               ชื่อเอกสาร <span className="text-red-500">*</span>
@@ -186,7 +186,7 @@ export default function AddDocModal({ open, onClose, onConfirm }: Props) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-zinc-100 px-6 py-4">
+        <div className="flex shrink-0 justify-end gap-3 border-t border-zinc-100 px-6 py-4">
           <button
             onClick={onClose}
             className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"

@@ -1,4 +1,5 @@
 import type { Category, ItemStatus, StockRow } from "./types";
+import { CATEGORY_OPTIONS, ZONE_OPTIONS } from "./constants";
 
 export function fmt(n: number) {
   return new Intl.NumberFormat("th-TH").format(n);
@@ -77,28 +78,55 @@ export function getNextStockId(stockData: StockRow[]) {
 export function getCodePrefix(category: Category) {
   if (category === "ไฟฟ้า") return "LT";
   if (category === "ผ้าใบ") return "ST";
-  return "GR";
+  if (category === "ตกแต่ง") return "GR";
+  return "OT";
+}
+
+export function getCategoryOptions(stockData: StockRow[], extra: string[] = []) {
+  const seen = new Set<string>();
+
+  return [...CATEGORY_OPTIONS, ...stockData.map((row) => row.category), ...extra]
+    .map((category) => category.trim())
+    .filter((category) => {
+      if (!category || seen.has(category)) return false;
+      seen.add(category);
+      return true;
+    });
+}
+
+export function getZoneOptions(stockData: StockRow[], extra: string[] = []) {
+  const seen = new Set<string>();
+
+  return [...ZONE_OPTIONS, ...stockData.map((row) => row.zone), ...extra]
+    .map((zone) => zone.trim())
+    .filter((zone) => {
+      if (!zone || seen.has(zone)) return false;
+      seen.add(zone);
+      return true;
+    });
 }
 
 export function filterStockRows(
   stockData: StockRow[],
   q: string,
   status: "ทั้งหมด" | ItemStatus,
-  category: "ทั้งหมด" | Category
+  categories: Category[]
 ) {
   return stockData.filter((r) => {
     const hitQ =
       q.trim().length === 0 ||
-      [r.id, r.code, r.name, r.brand, r.system, r.zone].some((x) =>
+      [r.id, r.code, r.name, r.brand, r.system, r.zone, r.warehouseAddress].some((x) =>
         x.toLowerCase().includes(q.toLowerCase())
       );
 
     const hitStatus = getFilteredStockStatusParts(r, status).length > 0;
+    const hitCategory =
+      categories.length === 0 || categories.includes(r.category);
 
     return (
       hitQ &&
       hitStatus &&
-      (category === "ทั้งหมด" || r.category === category)
+      hitCategory
     );
   });
 }
@@ -124,6 +152,7 @@ export function exportStockToExcel(rows: StockRow[]) {
           "ประเภท",
           "หมวดหมู่",
           "โซน",
+          "ที่อยู่โกดัง",
           "สถานะ",
           "จำนวนรวม",
           "พร้อมใช้",
@@ -139,6 +168,7 @@ export function exportStockToExcel(rows: StockRow[]) {
           r.category,
           r.system,
           r.zone,
+          r.warehouseAddress,
           r.status,
           r.qty,
           r.available,
@@ -158,6 +188,7 @@ export function exportStockToExcel(rows: StockRow[]) {
         { wch: 10 },
         { wch: 16 },
         { wch: 10 },
+        { wch: 28 },
         { wch: 12 },
         { wch: 12 },
         { wch: 12 },

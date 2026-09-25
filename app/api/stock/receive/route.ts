@@ -81,11 +81,13 @@ export async function POST(req: NextRequest) {
         category: updated.category,
         system: updated.system,
         zone: updated.zone,
+        warehouseAddress: updated.warehouse_address ?? "",
         status: updated.status,
         qty: updated.qty,
         available: updated.available,
         pricePerDay: updated.price_per_day,
         cost: updated.cost,
+        repairing: updated.repairing,
       },
     });
   } catch (err) {

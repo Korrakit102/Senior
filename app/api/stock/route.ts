@@ -12,6 +12,7 @@ type StockApiRow = {
   category: string;
   system: string;
   zone: string;
+  warehouseAddress?: string;
   status: string;
   qty: number;
   available: number;
@@ -29,6 +30,7 @@ function mapFromDb(row: StockRowDb): StockApiRow {
     category: row.category,
     system: row.system,
     zone: row.zone,
+    warehouseAddress: row.warehouse_address ?? "",
     status: row.status,
     qty: row.qty,
     available: row.available,
@@ -55,6 +57,7 @@ export async function PUT(req: NextRequest) {
     (it) =>
       it?.id && it?.code && it?.name && it?.brand && it?.category &&
       it?.system && it?.zone && it?.status &&
+      (it?.warehouseAddress === undefined || typeof it.warehouseAddress === "string") &&
       typeof it?.qty === "number" &&
       typeof it?.available === "number" &&
       typeof it?.pricePerDay === "number" &&

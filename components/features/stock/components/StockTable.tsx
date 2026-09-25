@@ -187,7 +187,14 @@ export default function StockTable({
                   </td>
 
                   <td className="px-6 py-5">
-                    <StockPill tone="blue">{r.zone}</StockPill>
+                    <div className="space-y-1">
+                      <StockPill tone="blue">{r.zone}</StockPill>
+                      {r.warehouseAddress && (
+                        <div className="max-w-40 truncate text-xs text-zinc-500">
+                          {r.warehouseAddress}
+                        </div>
+                      )}
+                    </div>
                   </td>
 
                   <td className="px-6 py-5">

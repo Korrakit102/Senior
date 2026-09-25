@@ -26,6 +26,7 @@ function mapEvent(row: EventRow) {
     contactPhone: row.contact_phone ?? undefined,
     customerEmail: row.customer_email ?? undefined,
     customerTaxId: row.customer_tax_id ?? undefined,
+    workOrderSalesTargets: row.work_order_sales_targets ?? undefined,
     equipment: Array.isArray(row.equipment) ? row.equipment : [],
     paymentReceipt:
       row.receipt_file_name &&

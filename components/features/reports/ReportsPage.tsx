@@ -10,6 +10,7 @@ import type {
   EventReportRow,
   FinanceSummary,
   ReportTab,
+  WorkOrderSalesTargets,
 } from "./types";
 import {
   buildDamageExportData,
@@ -286,6 +287,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           budgetTHB?: number;
           attendees?: number;
           desc?: string;
+          workOrderSalesTargets?: WorkOrderSalesTargets;
           status: {
             text: string;
             tone: "success" | "pending" | "progress" | "rejected";
@@ -329,6 +331,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
               attendees: r.attendees,
               description: r.desc,
               equipment,
+              workOrderSalesTargets: r.workOrderSalesTargets,
               paymentReceipt: r.paymentReceipt,
               status: {
                 text: r.status.text,
@@ -357,6 +360,20 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
     };
     loadDamageItems();
   }, []);
+
+  const handleWorkOrderSalesTargetsSaved = (
+    eventId: string,
+    workOrderSalesTargets: WorkOrderSalesTargets
+  ) => {
+    setEventReportRows((prev) =>
+      prev.map((event) =>
+        event.id === eventId ? { ...event, workOrderSalesTargets } : event
+      )
+    );
+    setWorkOrderEvent((current) =>
+      current?.id === eventId ? { ...current, workOrderSalesTargets } : current
+    );
+  };
 
   const eventDocumentRows = useMemo<DocRow[]>(
     () =>
@@ -707,6 +724,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         open={workOrderEvent !== null}
         event={workOrderEvent}
         onClose={() => setWorkOrderEvent(null)}
+        onSaved={handleWorkOrderSalesTargetsSaved}
       />
 
       <DamageInvoiceModal

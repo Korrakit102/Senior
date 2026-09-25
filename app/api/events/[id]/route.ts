@@ -11,8 +11,9 @@ import {
   updateEventEquipment,
   updateEventIssueStatus,
   updateEventPaymentReceipt,
+  updateEventWorkOrderSalesTargets,
 } from "@/lib/db";
-import type { EventEquipmentRow } from "@/lib/db";
+import type { EventEquipmentRow, WorkOrderSalesTargets } from "@/lib/db";
 
 const MAX_IMAGE_RECEIPT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_PDF_RECEIPT_FILE_SIZE = 20 * 1024 * 1024; // 20MB
@@ -99,6 +100,49 @@ function normalizeEquipmentList(value: unknown): EventEquipmentRow[] {
     .filter((item): item is EventEquipmentRow => item !== null);
 }
 
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+
+  const rowsSource = Array.isArray(source.rows) ? source.rows : [];
+  const rows = rowsSource
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = textValue(row.id) || `sales-target-${index + 1}`;
+
+      return {
+        id,
+        displayModel: textValue(row.displayModel),
+        displayQty: textValue(row.displayQty),
+        testDriveModel: textValue(row.testDriveModel),
+        testDriveQty: textValue(row.testDriveQty),
+      };
+    })
+    .filter((row): row is WorkOrderSalesTargets["rows"][number] => row !== null);
+
+  const totalsSource =
+    source.totals && typeof source.totals === "object"
+      ? source.totals as Record<string, unknown>
+      : {};
+
+  const carModelOptions = Array.isArray(source.carModelOptions)
+    ? Array.from(new Set(source.carModelOptions.map(textValue).filter(Boolean)))
+    : [];
+
+  return {
+    rows,
+    totals: {
+      bookingTarget: textValue(totalsSource.bookingTarget),
+      interestedTarget: textValue(totalsSource.interestedTarget),
+    },
+    carModelOptions,
+  };
+}
+
 function mergeEquipment(
   currentEquipment: EventEquipmentRow[],
   incomingEquipment: EventEquipmentRow[]
@@ -160,6 +204,25 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const body = await req.json().catch(() => null);
+
+  if (body?.workOrderSalesTargets) {
+    const current = await getEventById(id);
+    if (!current) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    const workOrderSalesTargets = normalizeWorkOrderSalesTargets(body.workOrderSalesTargets);
+    const rowCount = await updateEventWorkOrderSalesTargets({
+      id,
+      workOrderSalesTargets,
+    });
+
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, workOrderSalesTargets });
+  }
 
   // ─── เพิ่ม/คืนอุปกรณ์แบบด่วน โดยผูกกับ Event ที่เลือก ─────────────────────
   if (body?.quickEquipmentAction) {

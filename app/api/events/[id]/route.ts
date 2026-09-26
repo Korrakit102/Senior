@@ -13,8 +13,9 @@ import {
   updateEventDecision,
   updateEventIssueStatus,
   updateEventPaymentReceipt,
+  updateEventWorkOrderSalesTargets,
 } from "@/lib/db";
-import type { EventEquipmentRow, StockRowDb } from "@/lib/db";
+import type { EventEquipmentRow, StockRowDb, WorkOrderSalesTargets } from "@/lib/db";
 import { containsNullByte } from "@/lib/sanitize";
 
 function mapStockForResponse(rows: StockRowDb[]) {
@@ -126,6 +127,49 @@ function normalizeEquipmentList(value: unknown): EventEquipmentRow[] {
     .filter((item): item is EventEquipmentRow => item !== null);
 }
 
+function textValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
+  const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
+
+  const rowsSource = Array.isArray(source.rows) ? source.rows : [];
+  const rows = rowsSource
+    .map((item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const id = textValue(row.id) || `sales-target-${index + 1}`;
+
+      return {
+        id,
+        displayModel: textValue(row.displayModel),
+        displayQty: textValue(row.displayQty),
+        testDriveModel: textValue(row.testDriveModel),
+        testDriveQty: textValue(row.testDriveQty),
+      };
+    })
+    .filter((row): row is WorkOrderSalesTargets["rows"][number] => row !== null);
+
+  const totalsSource =
+    source.totals && typeof source.totals === "object"
+      ? source.totals as Record<string, unknown>
+      : {};
+
+  const carModelOptions = Array.isArray(source.carModelOptions)
+    ? Array.from(new Set(source.carModelOptions.map(textValue).filter(Boolean)))
+    : [];
+
+  return {
+    rows,
+    totals: {
+      bookingTarget: textValue(totalsSource.bookingTarget),
+      interestedTarget: textValue(totalsSource.interestedTarget),
+    },
+    carModelOptions,
+  };
+}
+
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
 
@@ -138,6 +182,25 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if (containsNullByte(body)) {
     return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
+  if (body?.workOrderSalesTargets) {
+    const current = await getEventById(id);
+    if (!current) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    const workOrderSalesTargets = normalizeWorkOrderSalesTargets(body.workOrderSalesTargets);
+    const rowCount = await updateEventWorkOrderSalesTargets({
+      id,
+      workOrderSalesTargets,
+    });
+
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, workOrderSalesTargets });
   }
 
   // ─── เพิ่ม/คืนอุปกรณ์แบบด่วน โดยผูกกับ Event ที่เลือก ─────────────────────

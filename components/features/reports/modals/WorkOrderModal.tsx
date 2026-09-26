@@ -3,13 +3,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Download, Plus, Search, Trash2, X } from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
-import type { EventReportRow } from "../types";
+import type {
+  EventReportRow,
+  WorkOrderSalesTargetRow,
+  WorkOrderSalesTargetTotals,
+  WorkOrderSalesTargets,
+} from "../types";
 import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
 
 interface Props {
   open: boolean;
   event: EventReportRow | null;
   onClose: () => void;
+  onSaved?: (eventId: string, workOrderSalesTargets: WorkOrderSalesTargets) => void;
 }
 
 function daysBetween(start: string, end: string): number {
@@ -34,20 +40,10 @@ function todayTH(): string {
   return new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 }
 
-type SalesTargetRow = {
-  id: string;
-  displayModel: string;
-  displayQty: string;
-  testDriveModel: string;
-  testDriveQty: string;
-};
+type SalesTargetRow = WorkOrderSalesTargetRow;
+type SalesTargetTotals = WorkOrderSalesTargetTotals;
 
-type SalesTargetTotals = {
-  bookingTarget: string;
-  interestedTarget: string;
-};
-
-function createSalesTargetRow(id: string): SalesTargetRow {
+function createSalesTargetRow(id: string): WorkOrderSalesTargetRow {
   return {
     id,
     displayModel: "",
@@ -60,11 +56,6 @@ function createSalesTargetRow(id: string): SalesTargetRow {
 function cloneSalesTargetRows(rows: SalesTargetRow[]): SalesTargetRow[] {
   return rows.map((row) => ({ ...row }));
 }
-
-const EMPTY_SALES_TARGET_TOTALS: SalesTargetTotals = {
-  bookingTarget: "",
-  interestedTarget: "",
-};
 
 const SALES_TARGET_COLUMNS: Array<keyof Omit<SalesTargetRow, "id">> = [
   "displayModel",
@@ -81,7 +72,41 @@ const DEFAULT_CAR_MODELS = [
   "D-MAX Spark",
 ];
 
-export default function WorkOrderModal({ open, event, onClose }: Props) {
+function normalizeSalesTargets(
+  value: WorkOrderSalesTargets | undefined
+): WorkOrderSalesTargets {
+  const rows =
+    value?.rows && value.rows.length > 0
+      ? value.rows.map((row, index) => ({
+          id: row.id || `sales-target-${index + 1}`,
+          displayModel: row.displayModel ?? "",
+          displayQty: row.displayQty ?? "",
+          testDriveModel: row.testDriveModel ?? "",
+          testDriveQty: row.testDriveQty ?? "",
+        }))
+      : [createSalesTargetRow("sales-target-1")];
+
+  const optionSet = new Set(
+    [
+      ...DEFAULT_CAR_MODELS,
+      ...(value?.carModelOptions ?? []),
+      ...rows.flatMap((row) => [row.displayModel, row.testDriveModel]),
+    ]
+      .map((option) => option.trim())
+      .filter(Boolean)
+  );
+
+  return {
+    rows,
+    totals: {
+      bookingTarget: value?.totals?.bookingTarget ?? "",
+      interestedTarget: value?.totals?.interestedTarget ?? "",
+    },
+    carModelOptions: Array.from(optionSet),
+  };
+}
+
+export default function WorkOrderModal({ open, event, onClose, onSaved }: Props) {
   const documentSettings = useDocumentSettings(open);
 
   useBodyScrollLock(open && Boolean(event));
@@ -93,6 +118,7 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
       key={event.id}
       event={event}
       onClose={onClose}
+      onSaved={onSaved}
       documentSettings={documentSettings}
     />
   );
@@ -101,25 +127,30 @@ export default function WorkOrderModal({ open, event, onClose }: Props) {
 function WorkOrderModalBody({
   event,
   onClose,
+  onSaved,
   documentSettings,
 }: {
   event: EventReportRow;
   onClose: () => void;
+  onSaved?: (eventId: string, workOrderSalesTargets: WorkOrderSalesTargets) => void;
   documentSettings: DocumentSettings;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
-  const [draftSalesTargets, setDraftSalesTargets] = useState<SalesTargetRow[]>(() => [
-    createSalesTargetRow("sales-target-1"),
-  ]);
+  const initialSalesTargets = normalizeSalesTargets(event.workOrderSalesTargets);
+  const [draftSalesTargets, setDraftSalesTargets] = useState<SalesTargetRow[]>(() =>
+    cloneSalesTargetRows(initialSalesTargets.rows)
+  );
   const [draftSalesTargetTotals, setDraftSalesTargetTotals] =
-    useState<SalesTargetTotals>(EMPTY_SALES_TARGET_TOTALS);
-  const [savedSalesTargets, setSavedSalesTargets] = useState<SalesTargetRow[]>(() => [
-    createSalesTargetRow("sales-target-1"),
-  ]);
+    useState<SalesTargetTotals>(() => ({ ...initialSalesTargets.totals }));
+  const [savedSalesTargets, setSavedSalesTargets] = useState<SalesTargetRow[]>(() =>
+    cloneSalesTargetRows(initialSalesTargets.rows)
+  );
   const [savedSalesTargetTotals, setSavedSalesTargetTotals] =
-    useState<SalesTargetTotals>(EMPTY_SALES_TARGET_TOTALS);
+    useState<SalesTargetTotals>(() => ({ ...initialSalesTargets.totals }));
   const [saveMessage, setSaveMessage] = useState("");
-  const [carModelOptions, setCarModelOptions] = useState(DEFAULT_CAR_MODELS);
+  const [saveError, setSaveError] = useState("");
+  const [isSavingTargets, setIsSavingTargets] = useState(false);
+  const [carModelOptions, setCarModelOptions] = useState(initialSalesTargets.carModelOptions);
 
   const docNo = `WO-${event.id}`;
 
@@ -129,6 +160,7 @@ function WorkOrderModalBody({
     value: string
   ) => {
     setSaveMessage("");
+    setSaveError("");
     setDraftSalesTargets((current) =>
       current.map((row) => (row.id === rowId ? { ...row, [key]: value } : row))
     );
@@ -136,6 +168,7 @@ function WorkOrderModalBody({
 
   const addSalesTargetRow = () => {
     setSaveMessage("");
+    setSaveError("");
     setDraftSalesTargets((current) => [
       ...current,
       createSalesTargetRow(`sales-target-${current.length + 1}-${Date.now()}`),
@@ -144,6 +177,7 @@ function WorkOrderModalBody({
 
   const removeSalesTargetRow = (rowId: string) => {
     setSaveMessage("");
+    setSaveError("");
     setDraftSalesTargets((current) =>
       current.length > 1 ? current.filter((row) => row.id !== rowId) : current
     );
@@ -154,13 +188,44 @@ function WorkOrderModalBody({
     value: string
   ) => {
     setSaveMessage("");
+    setSaveError("");
     setDraftSalesTargetTotals((current) => ({ ...current, [key]: value }));
   };
 
-  const handleSaveSalesTargets = () => {
-    setSavedSalesTargets(cloneSalesTargetRows(draftSalesTargets));
-    setSavedSalesTargetTotals({ ...draftSalesTargetTotals });
-    setSaveMessage("บันทึกเป้าหมายยอดขายแล้ว");
+  const handleSaveSalesTargets = async () => {
+    setIsSavingTargets(true);
+    setSaveError("");
+    setSaveMessage("");
+
+    const workOrderSalesTargets: WorkOrderSalesTargets = {
+      rows: cloneSalesTargetRows(draftSalesTargets),
+      totals: { ...draftSalesTargetTotals },
+      carModelOptions,
+    };
+
+    try {
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workOrderSalesTargets }),
+      });
+      if (!res.ok) throw new Error("failed to save work order targets");
+      const data = (await res.json()) as {
+        workOrderSalesTargets?: WorkOrderSalesTargets;
+      };
+      const saved = normalizeSalesTargets(
+        data.workOrderSalesTargets ?? workOrderSalesTargets
+      );
+      setSavedSalesTargets(cloneSalesTargetRows(saved.rows));
+      setSavedSalesTargetTotals({ ...saved.totals });
+      setCarModelOptions(saved.carModelOptions);
+      onSaved?.(event.id, saved);
+      setSaveMessage("บันทึกเป้าหมายยอดขายแล้ว");
+    } catch {
+      setSaveError("บันทึกไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setIsSavingTargets(false);
+    }
   };
 
   const addCarModelOption = (value: string) => {
@@ -353,12 +418,18 @@ function WorkOrderModalBody({
                     {saveMessage}
                   </span>
                 )}
+                {saveError && (
+                  <span className="text-xs font-medium text-red-600">
+                    {saveError}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveSalesTargets}
-                  className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                  disabled={isSavingTargets}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  บันทึก
+                  {isSavingTargets ? "กำลังบันทึก..." : "บันทึก"}
                 </button>
               </div>
             </div>

@@ -20,6 +20,25 @@ export type EventEquipmentItem = {
   pricePerDayTHB: number;
 };
 
+export type WorkOrderSalesTargetRow = {
+  id: string;
+  displayModel: string;
+  displayQty: string;
+  testDriveModel: string;
+  testDriveQty: string;
+};
+
+export type WorkOrderSalesTargetTotals = {
+  bookingTarget: string;
+  interestedTarget: string;
+};
+
+export type WorkOrderSalesTargets = {
+  rows: WorkOrderSalesTargetRow[];
+  totals: WorkOrderSalesTargetTotals;
+  carModelOptions: string[];
+};
+
 export type EventReportRow = {
   id: string;
   title: string;
@@ -41,6 +60,7 @@ export type EventReportRow = {
   attendees?: number;
   description?: string;
   equipment: EventEquipmentItem[];
+  workOrderSalesTargets?: WorkOrderSalesTargets;
   paymentReceipt?: PaymentReceipt;
   status: {
     text: string;

@@ -43,6 +43,23 @@ export type EventEquipmentRow = {
   pricePerDayTHB: number;
 };
 
+export type WorkOrderSalesTargetRow = {
+  id: string;
+  displayModel: string;
+  displayQty: string;
+  testDriveModel: string;
+  testDriveQty: string;
+};
+
+export type WorkOrderSalesTargets = {
+  rows: WorkOrderSalesTargetRow[];
+  totals: {
+    bookingTarget: string;
+    interestedTarget: string;
+  };
+  carModelOptions: string[];
+};
+
 // รูปแบบใบเสร็จที่ลูกค้าแนบหลังคืนอุปกรณ์
 export type EventPaymentReceipt = {
   fileName: string;
@@ -75,6 +92,7 @@ export type EventRow = {
   customer_email: string | null;
   customer_tax_id: string | null;
   equipment: EventEquipmentRow[];
+  work_order_sales_targets: WorkOrderSalesTargets | null;
   receipt_file_name: string | null;
   receipt_file_type: string | null;
   receipt_data_url: string | null;
@@ -282,6 +300,10 @@ async function ensureEventsTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS customer_tax_id TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS work_order_sales_targets JSONB NOT NULL DEFAULT '{"rows":[],"totals":{"bookingTarget":"","interestedTarget":""},"carModelOptions":[]}'::jsonb;
     `);
     // ข้อมูลเก่าที่คืนอุปกรณ์แล้วแต่ยังไม่มีใบเสร็จ ต้องกลับเข้าขั้นตอนรอชำระเงินตาม flow ใหม่
     await c.query(`
@@ -696,7 +718,7 @@ export async function listEvents(): Promise<EventRow[]> {
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
          organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
-         customer_email, customer_tax_id, equipment,
+         customer_email, customer_tax_id, equipment, work_order_sales_targets,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events ORDER BY created_at DESC, id DESC`
     );
@@ -715,7 +737,7 @@ export async function getEventById(id: string): Promise<EventRow | null> {
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
          organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
-         customer_email, customer_tax_id, equipment,
+         customer_email, customer_tax_id, equipment, work_order_sales_targets,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events WHERE id = $1 LIMIT 1`,
       [id]
@@ -869,6 +891,25 @@ export async function updateEventDecision(payload: {
 }
 
 // อัปเดตรายการอุปกรณ์ของ Event จาก flow เบิก/คืนด่วน โดยไม่ต้องผ่านหน้าจออนุมัติ
+export async function updateEventWorkOrderSalesTargets(payload: {
+  id: string;
+  workOrderSalesTargets: WorkOrderSalesTargets;
+}) {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    const res = await client.query(
+      `UPDATE events
+       SET work_order_sales_targets = $2::jsonb
+       WHERE id = $1`,
+      [payload.id, JSON.stringify(payload.workOrderSalesTargets)]
+    );
+    return res.rowCount ?? 0;
+  } finally {
+    client.release();
+  }
+}
+
 export async function updateEventEquipment(payload: {
   id: string;
   equipment: EventEquipmentRow[];

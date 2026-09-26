@@ -34,15 +34,18 @@ import QuickReturnModal from "./modals/QuickReturnModal";
 import ConfirmIssueModal from "./modals/ConfirmIssueModal";
 import ConfirmReturnModal from "./modals/ConfirmReturnModal";
 
+type UpdatedStockRow = {
+  id: string;
+  qty: number;
+  available: number;
+  status: string;
+  repairing: number;
+};
+
 type Props = {
   role: Role;
   stockData: StockRow[];
-  onDeductStock: (equipmentList: { name: string; qty: number }[]) => void;
-  onReturnStock: (equipmentList: { name: string; qty: number }[]) => void;
-  onMarkDamagedStock: (
-    equipmentList: { name: string; qty: number }[],
-    eventId?: string
-  ) => void;
+  onStockRowsUpdated: (rows: UpdatedStockRow[]) => void;
   onMarkEventAsIssued?: (eventId: string) => void;
   onUnmarkEventAsIssued?: (eventId: string) => void;
   onAddDamageRows?: (rows: DamageRow[]) => void;
@@ -51,6 +54,7 @@ type Props = {
 type QuickEquipmentResponse = {
   equipment?: Array<{ name: string; qty: number }>;
   issueStatus?: EventStatus;
+  stock?: UpdatedStockRow[];
 };
 
 function normalizeEventEquipmentItems(
@@ -115,9 +119,7 @@ function subtractEventEquipmentItems(
 export default function IssueReturnPage({
   role,
   stockData,
-  onDeductStock,
-  onReturnStock,
-  onMarkDamagedStock,
+  onStockRowsUpdated,
   onMarkEventAsIssued,
   onUnmarkEventAsIssued,
   onAddDamageRows,
@@ -256,35 +258,29 @@ export default function IssueReturnPage({
       const normalItems = returnItems.filter((i) => !i.damaged);
       const anyDamaged = damagedItems.length > 0;
 
+      // คืนส่วนที่ไม่เสียหายกลับก่อน (qty - damagedQty) แล้วรวมกับรายการที่ไม่เสียหายล้วน
+      const undamagedPortions = damagedItems
+        .filter((i) => i.qty > i.damagedQty)
+        .map((i) => ({ name: i.name, qty: i.qty - i.damagedQty }));
+      const normalStockItems =
+        returnItems.length === 0
+          ? (equipmentByEvent[confirmReturnEvent.id] ?? []).map((i) => ({ name: i.name, qty: i.qty }))
+          : [...undamagedPortions, ...normalItems.map((i) => ({ name: i.name, qty: i.qty }))];
+      const damagedStockItems = damagedItems.map((i) => ({ name: i.name, qty: i.damagedQty }));
+
       const res = await fetch(`/api/events/${confirmReturnEvent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ issueStatus: "returned", isDamaged: anyDamaged }),
+        body: JSON.stringify({
+          issueStatus: "returned",
+          isDamaged: anyDamaged,
+          normalItems: normalStockItems,
+          damagedItems: damagedStockItems,
+        }),
       });
       if (!res.ok) throw new Error("failed to update issue status");
-
-      if (damagedItems.length > 0) {
-        // คืนส่วนที่ไม่เสียหายกลับก่อน (qty - damagedQty)
-        const undamagedPortions = damagedItems
-          .filter((i) => i.qty > i.damagedQty)
-          .map((i) => ({ name: i.name, qty: i.qty - i.damagedQty }));
-        if (undamagedPortions.length > 0) {
-          onReturnStock(undamagedPortions);
-        }
-        // จากนั้น mark damaged เฉพาะจำนวนที่เสียหายจริง (ไม่ใช่ทั้งหมดที่คืน)
-        onMarkDamagedStock(
-          damagedItems.map((i) => ({ name: i.name, qty: i.damagedQty })),
-          confirmReturnEvent.id
-        );
-      }
-      if (normalItems.length > 0) {
-        onReturnStock(normalItems.map((i) => ({ name: i.name, qty: i.qty })));
-      }
-      // fallback: no item info
-      if (returnItems.length === 0) {
-        const equipment = equipmentByEvent[confirmReturnEvent.id] ?? [];
-        onReturnStock(equipment.map((i) => ({ name: i.name, qty: i.qty })));
-      }
+      const data = (await res.json()) as { stock?: UpdatedStockRow[] };
+      onStockRowsUpdated(data.stock ?? []);
 
       // Build per-item DamageRow entries
       if (anyDamaged && onAddDamageRows) {
@@ -367,7 +363,7 @@ export default function IssueReturnPage({
           ? normalizeEventEquipmentItems(data.equipment)
           : fallbackEquipment;
 
-      onDeductStock(items.map((i) => ({ name: i.name, qty: i.qty })));
+      onStockRowsUpdated(data.stock ?? []);
       setEquipmentByEvent((prev) => ({ ...prev, [eventId]: nextEquipment }));
       setEvents((prev) =>
         prev.map((event) =>
@@ -419,11 +415,7 @@ export default function IssueReturnPage({
           ? "returned"
           : "inuse";
 
-      if (damaged) {
-        onMarkDamagedStock(items.map((i) => ({ name: i.name, qty: i.qty })), eventId);
-      } else {
-        onReturnStock(items.map((i) => ({ name: i.name, qty: i.qty })));
-      }
+      onStockRowsUpdated(data.stock ?? []);
 
       if (damaged && onAddDamageRows) {
         const newRows: DamageRow[] = items.map((item, idx) => {

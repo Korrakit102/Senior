@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { listStockReceiptsByStockId, receiveStock } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 // ดึงประวัติการรับเข้าสต็อกของอุปกรณ์ตัวเดียว ใช้แสดงใน StockDetailModal
 export async function GET(req: NextRequest) {
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const valid =
     typeof equipmentId === "string" && equipmentId.trim().length > 0 &&
-    typeof quantity === "number" && quantity > 0 &&
+    typeof quantity === "number" && Number.isInteger(quantity) && quantity > 0 &&
     typeof unitCost === "number" && unitCost > 0 &&
     typeof supplier === "string" && supplier.trim().length > 0 &&
     typeof role === "string" && role.trim().length > 0 &&
@@ -58,6 +59,20 @@ export async function POST(req: NextRequest) {
 
   if (!valid) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
+  // ค่าส่ง+ค่าอื่นๆ รวมกัน ห้ามเกิน 50% ของมูลค่าสินค้าหลัก (unitCost x quantity) กันกรอกเลขศูนย์เกินโดยไม่ตั้งใจ
+  const productValue = quantity * unitCost;
+  const extraCost = (shippingCost ?? 0) + (otherCost ?? 0);
+  if (extraCost > productValue * 0.5) {
+    return NextResponse.json(
+      { error: "ค่าส่ง+ค่าอื่นๆ รวมกันสูงเกินไป ต้องไม่เกิน 50% ของมูลค่าสินค้าหลัก (จำนวน x ราคาต่อหน่วย)" },
+      { status: 400 }
+    );
   }
 
   try {

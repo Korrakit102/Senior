@@ -173,6 +173,28 @@ export type EquipmentHistoryRow = {
   changed_at: string;
 };
 
+// ถ้า item เดียวกันถูกอัปเดตหลายครั้งใน transaction เดียว (เช่น คืนบางส่วน+เสียหายบางส่วน)
+// ให้เหลือแค่ผลลัพธ์ล่าสุดต่อ id เดียว (ค่าล่าสุด = สถานะจริงหลังอัปเดตครบทุกขั้นตอนแล้ว)
+function dedupeStockRowsById(rows: StockRowDb[]): StockRowDb[] {
+  const byId = new Map<string, StockRowDb>();
+  for (const row of rows) byId.set(row.id, row);
+  return Array.from(byId.values());
+}
+
+// เพิ่ม FOREIGN KEY constraint ให้ตาราง ถ้ายังไม่มี (Postgres ไม่รองรับ ADD CONSTRAINT IF NOT EXISTS ตรงๆ)
+async function addForeignKeyIfNotExists(
+  c: PoolClient,
+  constraintName: string,
+  ddl: string
+) {
+  const exists = await c.query(`SELECT 1 FROM pg_constraint WHERE conname = $1`, [
+    constraintName,
+  ]);
+  if (exists.rows.length === 0) {
+    await c.query(ddl);
+  }
+}
+
 // ตรวจและสร้างตารางแจ้งเตือน ถ้ายังไม่มีในฐานข้อมูล
 async function ensureNotificationsTable(client?: PoolClient) {
   const c = client ?? (await pool.connect());
@@ -331,6 +353,26 @@ async function ensureStockHistoryTable(client?: PoolClient) {
       ALTER TABLE stock_history
       ADD COLUMN IF NOT EXISTS event_id TEXT;
     `);
+
+    // ตารางแม่ต้องมีอยู่ก่อนถึงจะใส่ FK ได้ (เผื่อฟังก์ชันนี้ถูกเรียกเป็นจุดแรกสุด)
+    await ensureStockTable(c);
+    await ensureEventsTable(c);
+    // ลบ stock item ที่มีประวัติอยู่ไม่ได้ (ป้องกันเสียประวัติทางบัญชี) — ต้องจัดการประวัติก่อน
+    await addForeignKeyIfNotExists(
+      c,
+      "stock_history_stock_id_fkey",
+      `ALTER TABLE stock_history
+       ADD CONSTRAINT stock_history_stock_id_fkey
+       FOREIGN KEY (stock_id) REFERENCES stock_items(id) ON DELETE RESTRICT`
+    );
+    // event_id เป็นแค่ข้อมูลอ้างอิงเสริมว่าเปลี่ยนแปลงเพราะอีเวนต์ไหน ลบอีเวนต์ได้โดยไม่ต้องเสียแถวประวัติ แค่ตัดการเชื่อมโยง
+    await addForeignKeyIfNotExists(
+      c,
+      "stock_history_event_id_fkey",
+      `ALTER TABLE stock_history
+       ADD CONSTRAINT stock_history_event_id_fkey
+       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL`
+    );
   } finally {
     if (!client) c.release();
   }
@@ -367,6 +409,16 @@ async function ensureStockReceiptsTable(client?: PoolClient) {
       ALTER TABLE stock_receipts
       ADD COLUMN IF NOT EXISTS other_cost NUMERIC NOT NULL DEFAULT 0;
     `);
+
+    await ensureStockTable(c);
+    // ลบ stock item ที่เคยรับเข้าสต็อกแล้วไม่ได้ (ป้องกันเสียประวัติต้นทุน/ผู้ขาย)
+    await addForeignKeyIfNotExists(
+      c,
+      "stock_receipts_stock_id_fkey",
+      `ALTER TABLE stock_receipts
+       ADD CONSTRAINT stock_receipts_stock_id_fkey
+       FOREIGN KEY (stock_id) REFERENCES stock_items(id) ON DELETE RESTRICT`
+    );
   } finally {
     if (!client) c.release();
   }
@@ -413,6 +465,16 @@ async function ensureDamageItemsTable(client?: PoolClient) {
       SET billed_cost = cost
       WHERE billed_cost IS NULL;
     `);
+
+    await ensureEventsTable(c);
+    // ลบอีเวนต์ที่มีประวัติความเสียหายผูกอยู่ไม่ได้ (ใช้ในรายงาน/เรียกเก็บเงิน ต้องจัดการเคสให้จบก่อน)
+    await addForeignKeyIfNotExists(
+      c,
+      "damage_items_event_id_fkey",
+      `ALTER TABLE damage_items
+       ADD CONSTRAINT damage_items_event_id_fkey
+       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE RESTRICT`
+    );
   } finally {
     if (!client) c.release();
   }
@@ -432,6 +494,16 @@ async function ensureEquipmentHistoryTable(client?: PoolClient) {
         changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
+
+    await ensureEventsTable(c);
+    // log ภายในของอีเวนต์นั้นล้วนๆ ไม่มีคุณค่าอิสระเมื่อพ่อแม่หายไปแล้ว จึงลบตามไปได้เลย
+    await addForeignKeyIfNotExists(
+      c,
+      "equipment_history_event_id_fkey",
+      `ALTER TABLE equipment_history
+       ADD CONSTRAINT equipment_history_event_id_fkey
+       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE`
+    );
   } finally {
     if (!client) c.release();
   }
@@ -1056,7 +1128,114 @@ export async function upsertStockItems(items: StockItemInput[]) {
   }
 }
 
-// Atomic server-side stock adjustment — deduct / return / damage
+// ลด available ของอุปกรณ์ 1 ชิ้น (ใช้ตอนเบิก) — คืน row ที่อัปเดตแล้ว หรือ null ถ้าไม่เจอชื่อนี้ในสต็อก
+async function deductStockItemTx(
+  client: PoolClient,
+  name: string,
+  qty: number,
+  createdAt: string
+): Promise<StockRowDb | null> {
+  const res = await client.query<StockRowDb & { old_available: number }>(
+    `WITH old_row AS (SELECT available FROM stock_items WHERE name = $1),
+     upd AS (
+       UPDATE stock_items
+       SET
+         available = GREATEST(0, available - $2::int),
+         status = CASE WHEN GREATEST(0, available - $2::int) = 0 THEN 'ใช้งานอยู่' ELSE status END
+       WHERE name = $1
+       RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
+     )
+     SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
+    [name, qty]
+  );
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  if (row.old_available !== row.available) {
+    await insertStockHistory(client, row.id, row.code, row.name, "available", row.old_available, row.available, createdAt);
+  }
+  return row;
+}
+
+// เพิ่ม available ของอุปกรณ์ 1 ชิ้นกลับ (ใช้ตอนคืนแบบไม่เสียหาย)
+async function returnStockItemTx(
+  client: PoolClient,
+  name: string,
+  qty: number,
+  createdAt: string
+): Promise<StockRowDb | null> {
+  const res = await client.query<StockRowDb & { old_available: number }>(
+    `WITH old_row AS (SELECT available FROM stock_items WHERE name = $1),
+     upd AS (
+       UPDATE stock_items
+       SET
+         available = LEAST(qty, available + $2::int),
+         status = CASE WHEN available + $2::int > 0 THEN 'พร้อมใช้' ELSE status END
+       WHERE name = $1
+       RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
+     )
+     SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
+    [name, qty]
+  );
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  if (row.old_available !== row.available) {
+    await insertStockHistory(client, row.id, row.code, row.name, "available", row.old_available, row.available, createdAt);
+  }
+  return row;
+}
+
+// ย้ายอุปกรณ์ที่เสียหายจาก qty ไปเป็น repairing (ใช้ตอนคืนแบบเสียหาย)
+async function damageStockItemTx(
+  client: PoolClient,
+  name: string,
+  qty: number,
+  createdAt: string,
+  eventId?: string
+): Promise<StockRowDb | null> {
+  const res = await client.query<
+    StockRowDb & { old_qty: number; old_repairing: number; damaged_qty: number }
+  >(
+    `WITH current_row AS (
+       SELECT qty, available, repairing
+       FROM stock_items
+       WHERE name = $1
+     ),
+     calc AS (
+       SELECT
+         qty AS old_qty,
+         repairing AS old_repairing,
+         LEAST($2::int, GREATEST(0, qty - available)) AS damaged_qty
+       FROM current_row
+     ),
+     upd AS (
+       UPDATE stock_items AS s
+       SET
+         qty = s.qty - calc.damaged_qty,
+         repairing = s.repairing + calc.damaged_qty,
+         status = CASE
+           WHEN s.available > 0 THEN 'พร้อมใช้'
+           WHEN s.qty - calc.damaged_qty <= 0 AND s.repairing + calc.damaged_qty > 0 THEN 'ซ่อมแซม'
+           ELSE s.status
+         END
+       FROM calc
+       WHERE s.name = $1
+       RETURNING s.id, s.code, s.name, s.brand, s.category, s.system, s.zone, s.warehouse_address, s.status, s.qty, s.available, s.price_per_day, s.cost, s.repairing
+     )
+     SELECT upd.*, calc.old_qty, calc.old_repairing, calc.damaged_qty FROM upd, calc`,
+    [name, qty]
+  );
+  if (res.rows.length === 0) return null;
+  const row = res.rows[0];
+  if (row.damaged_qty > 0 && row.old_qty !== row.qty) {
+    await insertStockHistory(client, row.id, row.code, row.name, "qty", row.old_qty, row.qty, createdAt, eventId);
+  }
+  if (row.damaged_qty > 0 && row.old_repairing !== row.repairing) {
+    await insertStockHistory(client, row.id, row.code, row.name, "repairing", row.old_repairing, row.repairing, createdAt, eventId);
+  }
+  return row;
+}
+
+// Atomic server-side stock adjustment — deduct / return / damage (ห่อทั้งชุด items ไว้ใน transaction เดียว)
 export async function adjustStock(
   items: Array<{ name: string; qty: number }>,
   action: "deduct" | "return" | "damage",
@@ -1066,106 +1245,206 @@ export async function adjustStock(
   try {
     await ensureStockTable(client);
     await ensureStockHistoryTable(client);
+    await client.query("BEGIN");
 
     const results: StockRowDb[] = [];
     const createdAt = new Date().toISOString();
 
     for (const item of items) {
-      if (action === "deduct") {
-        // CTE captures old available before the UPDATE in the same query
-        const res = await client.query<StockRowDb & { old_available: number }>(
-          `WITH old_row AS (SELECT available FROM stock_items WHERE name = $1),
-           upd AS (
-             UPDATE stock_items
-             SET
-               available = GREATEST(0, available - $2::int),
-               status = CASE WHEN GREATEST(0, available - $2::int) = 0 THEN 'ใช้งานอยู่' ELSE status END
-             WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
-           )
-           SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
-          [item.name, item.qty]
-        );
-        if (res.rows.length > 0) {
-          const row = res.rows[0];
-          results.push(row);
-          if (row.old_available !== row.available) {
-            await insertStockHistory(client, row.id, row.code, row.name, "available", row.old_available, row.available, createdAt);
-          }
-        }
-      } else if (action === "return") {
-        const res = await client.query<StockRowDb & { old_available: number }>(
-          `WITH old_row AS (SELECT available FROM stock_items WHERE name = $1),
-           upd AS (
-             UPDATE stock_items
-             SET
-               available = LEAST(qty, available + $2::int),
-               status = CASE WHEN available + $2::int > 0 THEN 'พร้อมใช้' ELSE status END
-             WHERE name = $1
-             RETURNING id, code, name, brand, category, system, zone, warehouse_address, status, qty, available, price_per_day, cost, repairing
-           )
-           SELECT upd.*, old_row.available AS old_available FROM upd, old_row`,
-          [item.name, item.qty]
-        );
-        if (res.rows.length > 0) {
-          const row = res.rows[0];
-          results.push(row);
-          if (row.old_available !== row.available) {
-            await insertStockHistory(client, row.id, row.code, row.name, "available", row.old_available, row.available, createdAt);
-          }
-        }
-      } else {
-        // ของเสียหายถูกตัดออกจากจำนวนสต็อกใช้งานจริง แต่ยังเพิ่ม repairing เพื่อเก็บประวัติแจ้งซ่อม
-        const res = await client.query<
-          StockRowDb & {
-            old_qty: number;
-            old_repairing: number;
-            damaged_qty: number;
-          }
-        >(
-          `WITH current_row AS (
-             SELECT qty, available, repairing
-             FROM stock_items
-             WHERE name = $1
-           ),
-           calc AS (
-             SELECT
-               qty AS old_qty,
-               repairing AS old_repairing,
-               LEAST($2::int, GREATEST(0, qty - available)) AS damaged_qty
-             FROM current_row
-           ),
-           upd AS (
-             UPDATE stock_items AS s
-             SET
-               qty = s.qty - calc.damaged_qty,
-               repairing = s.repairing + calc.damaged_qty,
-               status = CASE
-                 WHEN s.available > 0 THEN 'พร้อมใช้'
-                 WHEN s.qty - calc.damaged_qty <= 0 AND s.repairing + calc.damaged_qty > 0 THEN 'ซ่อมแซม'
-                 ELSE s.status
-               END
-             FROM calc
-             WHERE s.name = $1
-             RETURNING s.id, s.code, s.name, s.brand, s.category, s.system, s.zone, s.warehouse_address, s.status, s.qty, s.available, s.price_per_day, s.cost, s.repairing
-           )
-           SELECT upd.*, calc.old_qty, calc.old_repairing, calc.damaged_qty FROM upd, calc`,
-          [item.name, item.qty]
-        );
-        if (res.rows.length > 0) {
-          const row = res.rows[0];
-          results.push(row);
-          if (row.damaged_qty > 0 && row.old_qty !== row.qty) {
-            await insertStockHistory(client, row.id, row.code, row.name, "qty", row.old_qty, row.qty, createdAt, eventId);
-          }
-          if (row.damaged_qty > 0 && row.old_repairing !== row.repairing) {
-            await insertStockHistory(client, row.id, row.code, row.name, "repairing", row.old_repairing, row.repairing, createdAt, eventId);
-          }
-        }
-      }
+      const row =
+        action === "deduct"
+          ? await deductStockItemTx(client, item.name, item.qty, createdAt)
+          : action === "return"
+            ? await returnStockItemTx(client, item.name, item.qty, createdAt)
+            : await damageStockItemTx(client, item.name, item.qty, createdAt, eventId);
+      if (row) results.push(row);
     }
 
+    await client.query("COMMIT");
     return results;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// เบิกอุปกรณ์แบบด่วน: รวมอุปกรณ์เข้า equipment ของ Event + หักสต็อกจริง ในธุรกรรมเดียวกัน
+// กันปัญหา Event บอกว่าเบิกแล้วแต่ตัวเลขสต็อกไม่ลดตาม ถ้าขั้นตอนใดขั้นตอนหนึ่งพลาดกลางทาง
+export async function issueEquipmentAtomic(payload: {
+  id: string;
+  incomingEquipment: EventEquipmentRow[];
+}): Promise<{ equipment: EventEquipmentRow[]; stock: StockRowDb[] }> {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    await ensureStockTable(client);
+    await ensureStockHistoryTable(client);
+    await client.query("BEGIN");
+
+    const cur = await client.query<{ equipment: EventEquipmentRow[] }>(
+      `SELECT equipment FROM events WHERE id = $1 FOR UPDATE`,
+      [payload.id]
+    );
+    if (cur.rows.length === 0) {
+      await client.query("ROLLBACK");
+      throw new Error("event not found");
+    }
+    const currentEquipment = Array.isArray(cur.rows[0].equipment) ? cur.rows[0].equipment : [];
+
+    const byName = new Map<string, EventEquipmentRow>();
+    for (const item of currentEquipment) byName.set(item.name, { ...item });
+    for (const item of payload.incomingEquipment) {
+      const existing = byName.get(item.name);
+      byName.set(item.name, existing
+        ? {
+            ...existing,
+            qty: existing.qty + item.qty,
+            available: existing.available || item.available,
+            category: existing.category || item.category,
+            pricePerDayTHB: existing.pricePerDayTHB || item.pricePerDayTHB,
+          }
+        : { ...item });
+    }
+    const nextEquipment = Array.from(byName.values());
+
+    await client.query(
+      `UPDATE events SET equipment = $2::jsonb, items_count = $3, issue_status = 'inuse' WHERE id = $1`,
+      [payload.id, JSON.stringify(nextEquipment), nextEquipment.length]
+    );
+
+    const createdAt = new Date().toISOString();
+    const stockResults: StockRowDb[] = [];
+    for (const item of payload.incomingEquipment) {
+      const row = await deductStockItemTx(client, item.name, item.qty, createdAt);
+      if (row) stockResults.push(row);
+    }
+
+    await client.query("COMMIT");
+    return { equipment: nextEquipment, stock: dedupeStockRowsById(stockResults) };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// คืนอุปกรณ์แบบด่วน (บางส่วน): หักอุปกรณ์ออกจาก equipment ของ Event + คืน/ย้ายสต็อกไปซ่อม ในธุรกรรมเดียวกัน
+export async function returnEquipmentQuickAtomic(payload: {
+  id: string;
+  normalItems: Array<{ name: string; qty: number }>;
+  damagedItems: Array<{ name: string; qty: number }>;
+}): Promise<{ equipment: EventEquipmentRow[]; issueStatus: EventLifecycleStatus; stock: StockRowDb[] }> {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    await ensureStockTable(client);
+    await ensureStockHistoryTable(client);
+    await client.query("BEGIN");
+
+    const cur = await client.query<{ equipment: EventEquipmentRow[] }>(
+      `SELECT equipment FROM events WHERE id = $1 FOR UPDATE`,
+      [payload.id]
+    );
+    if (cur.rows.length === 0) {
+      await client.query("ROLLBACK");
+      throw new Error("event not found");
+    }
+    const currentEquipment = Array.isArray(cur.rows[0].equipment) ? cur.rows[0].equipment : [];
+
+    const returnedAll = [...payload.normalItems, ...payload.damagedItems];
+    const byName = new Map<string, EventEquipmentRow>();
+    for (const item of currentEquipment) byName.set(item.name, { ...item });
+    for (const item of returnedAll) {
+      const existing = byName.get(item.name);
+      if (!existing) continue;
+      const nextQty = Math.max(0, existing.qty - item.qty);
+      if (nextQty === 0) byName.delete(item.name);
+      else byName.set(item.name, { ...existing, qty: nextQty });
+    }
+    const nextEquipment = Array.from(byName.values());
+    const isFullyReturned = nextEquipment.length === 0;
+    const issueStatus: EventLifecycleStatus = isFullyReturned ? "returned" : "inuse";
+    const isDamaged = payload.damagedItems.length > 0;
+
+    await client.query(
+      `UPDATE events
+       SET
+         equipment = $2::jsonb,
+         items_count = $3,
+         issue_status = $4,
+         is_damaged = CASE WHEN $5 THEN true ELSE is_damaged END,
+         status_text = CASE WHEN $6 THEN 'รอชำระเงิน' ELSE status_text END,
+         status_tone = CASE WHEN $6 THEN 'pending' ELSE status_tone END
+       WHERE id = $1`,
+      [payload.id, JSON.stringify(nextEquipment), nextEquipment.length, issueStatus, isDamaged, isFullyReturned]
+    );
+
+    const createdAt = new Date().toISOString();
+    const stockResults: StockRowDb[] = [];
+    for (const item of payload.normalItems) {
+      const row = await returnStockItemTx(client, item.name, item.qty, createdAt);
+      if (row) stockResults.push(row);
+    }
+    for (const item of payload.damagedItems) {
+      const row = await damageStockItemTx(client, item.name, item.qty, createdAt, payload.id);
+      if (row) stockResults.push(row);
+    }
+
+    await client.query("COMMIT");
+    return { equipment: nextEquipment, issueStatus, stock: dedupeStockRowsById(stockResults) };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// คืนอุปกรณ์แบบเต็ม (หน้าคืนปกติ): ปิดสถานะ Event เป็นคืนแล้ว + คืน/ย้ายสต็อกไปซ่อม ในธุรกรรมเดียวกัน
+// ไม่แตะ equipment JSONB (พฤติกรรมเดิมของ updateEventIssueStatus — คืนเต็มจำนวนเสมอ ไม่ใช่บางส่วน)
+export async function returnEventFullAtomic(payload: {
+  id: string;
+  normalItems: Array<{ name: string; qty: number }>;
+  damagedItems: Array<{ name: string; qty: number }>;
+}): Promise<{ stock: StockRowDb[] }> {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    await ensureStockTable(client);
+    await ensureStockHistoryTable(client);
+    await client.query("BEGIN");
+
+    const isDamaged = payload.damagedItems.length > 0;
+    const res = await client.query(
+      `UPDATE events
+       SET issue_status = 'returned', is_damaged = $2, status_text = 'รอชำระเงิน', status_tone = 'pending'
+       WHERE id = $1`,
+      [payload.id, isDamaged]
+    );
+    if (res.rowCount === 0) {
+      await client.query("ROLLBACK");
+      throw new Error("event not found");
+    }
+
+    const createdAt = new Date().toISOString();
+    const stockResults: StockRowDb[] = [];
+    for (const item of payload.normalItems) {
+      const row = await returnStockItemTx(client, item.name, item.qty, createdAt);
+      if (row) stockResults.push(row);
+    }
+    for (const item of payload.damagedItems) {
+      const row = await damageStockItemTx(client, item.name, item.qty, createdAt, payload.id);
+      if (row) stockResults.push(row);
+    }
+
+    await client.query("COMMIT");
+    return { stock: dedupeStockRowsById(stockResults) };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
   } finally {
     client.release();
   }

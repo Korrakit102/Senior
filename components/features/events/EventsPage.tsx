@@ -324,7 +324,11 @@ export default function EventsPage({
     if (!target) { setDeleteEventId(null); return; }
     try {
       const res = await fetch(`/api/events/${deleteEventId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("failed to delete event");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setToast(data?.error || "ไม่สามารถลบอีเวนต์ได้");
+        return;
+      }
     } catch {
       setToast("ไม่สามารถลบอีเวนต์ได้");
       return;

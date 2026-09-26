@@ -1494,10 +1494,12 @@ export async function returnEventFullAtomic(payload: {
     await ensureStockHistoryTable(client);
     await client.query("BEGIN");
 
+    // is_damaged ห้ามรีเซ็ตกลับเป็น false: ถ้าเคยคืนด่วนแบบเสียหายไปก่อน แล้วคืนปกติที่เหลือทั้งหมด
+    // ต้องยังเป็น true (ใช้แบบเดียวกับ returnEquipmentQuickAtomic)
     const isDamaged = payload.damagedItems.length > 0;
     const res = await client.query(
       `UPDATE events
-       SET issue_status = 'returned', is_damaged = $2, status_text = 'รอชำระเงิน', status_tone = 'pending'
+       SET issue_status = 'returned', is_damaged = is_damaged OR $2, status_text = 'รอชำระเงิน', status_tone = 'pending'
        WHERE id = $1`,
       [payload.id, isDamaged]
     );

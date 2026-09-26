@@ -221,9 +221,9 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
     <div className="fixed inset-0 z-[120]">
       <div className="absolute inset-0 bg-black/40" onClick={pendingKey ? undefined : onClose} />
 
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between gap-3 p-5">
+      <div className="absolute inset-0 flex items-start justify-center overflow-y-auto overscroll-contain p-2 sm:p-4 lg:p-6">
+        <div className="flex max-h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] lg:max-w-4xl xl:max-w-5xl 2xl:max-w-6xl">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 p-4 sm:p-5">
             <div>
               <div className="text-lg font-semibold text-zinc-900">จำหน่ายสต็อก</div>
               <div className="mt-1 text-sm text-zinc-500">
@@ -234,13 +234,13 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
             <button
               onClick={onClose}
               disabled={!!pendingKey}
-              className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="px-5 pb-5 space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
             {selectedGroup === null ? (
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
@@ -395,8 +395,8 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                         </label>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-zinc-600">
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                        <label className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
                           จำนวน
                           <input
                             type="number"
@@ -414,7 +414,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                           type="button"
                           disabled={busy}
                           onClick={() => submit(lot, "return")}
-                          className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busyReturn ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -428,7 +428,7 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
                           type="button"
                           disabled={busy}
                           onClick={() => submit(lot, "dispose")}
-                          className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {busyDispose ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -506,15 +506,16 @@ export default function DisposeStockModal({ open, onClose, onResolved }: Props) 
               </div>
             )}
 
-            <div className="flex items-center justify-end">
-              <button
-                onClick={onClose}
-                disabled={!!pendingKey}
-                className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                ปิด
-              </button>
-            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center justify-end border-t border-zinc-100 bg-white px-4 py-3 sm:px-5">
+            <button
+              onClick={onClose}
+              disabled={!!pendingKey}
+              className="h-10 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ปิด
+            </button>
           </div>
         </div>
       </div>

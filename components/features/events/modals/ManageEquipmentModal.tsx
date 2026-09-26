@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Clock, Package, Plus, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Boxes,
+  CheckCircle2,
+  Clock,
+  Package,
+  Plus,
+  Search,
+  X,
+  XCircle,
+} from "lucide-react";
 import { useBodyScrollLock } from "@/lib/useBodyScrollLock";
 import type { StockRow } from "../../../AppShell";
 import type { SelectedEquipment } from "../types";
@@ -15,12 +25,61 @@ type HistoryEntry = {
   timestamp: string;
 };
 
+type WorkDetailForm = {
+  attendees: string;
+  workFormat: string;
+  workNature: string;
+  eventSize: string;
+  eventType: string;
+};
+
+function WorkDetailInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: "text" | "number";
+  error?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1 text-xs font-semibold text-zinc-700">{label}</div>
+      <input
+        type={type}
+        min={type === "number" ? 0 : undefined}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className={[
+          "h-10 w-full rounded-xl border bg-white px-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400",
+          error
+            ? "border-red-300 ring-2 ring-red-100"
+            : "border-zinc-200 focus:border-zinc-300 focus:ring-2 focus:ring-zinc-100",
+        ].join(" ")}
+      />
+      {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
+    </div>
+  );
+}
+
 export default function ManageEquipmentModal({
   open,
   eventId,
   eventTitle,
   startDateInitial,
   endDateInitial,
+  attendeesInitial,
+  workFormatInitial,
+  workNatureInitial,
+  eventSizeInitial,
+  eventTypeInitial,
   initialEquipment,
   stockData,
   onClose,
@@ -31,20 +90,37 @@ export default function ManageEquipmentModal({
   eventTitle: string;
   startDateInitial: string;
   endDateInitial: string;
+  attendeesInitial?: number;
+  workFormatInitial?: string;
+  workNatureInitial?: string;
+  eventSizeInitial?: string;
+  eventTypeInitial?: string;
   initialEquipment: SelectedEquipment[];
   stockData: StockRow[];
   onClose: () => void;
   onSubmitDecision: (payload: {
     startDate: string;
     endDate: string;
+    attendees: number | null;
+    workFormat: string;
+    workNature: string;
+    eventSize: string;
+    eventType: string;
     equipment: SelectedEquipment[];
     decision: "approved" | "rejected";
   }) => Promise<void>;
 }) {
   const [startDate, setStartDate] = useState(startDateInitial);
   const [endDate, setEndDate] = useState(endDateInitial);
+  const [workDetails, setWorkDetails] = useState<WorkDetailForm>({
+    attendees: attendeesInitial != null ? String(attendeesInitial) : "",
+    workFormat: workFormatInitial ?? "",
+    workNature: workNatureInitial ?? "",
+    eventSize: eventSizeInitial ?? "",
+    eventType: eventTypeInitial ?? "",
+  });
   const [equipment, setEquipment] = useState<SelectedEquipment[]>(initialEquipment);
-  const [errors, setErrors] = useState<{ startDate?: string; endDate?: string }>({});
+  const [errors, setErrors] = useState<{ startDate?: string; endDate?: string; attendees?: string }>({});
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [selectedName, setSelectedName] = useState("");
   const [equipQuery, setEquipQuery] = useState("");
@@ -93,6 +169,13 @@ export default function ManageEquipmentModal({
     if (!open || !eventId) return;
     setStartDate(startDateInitial);
     setEndDate(endDateInitial);
+    setWorkDetails({
+      attendees: attendeesInitial != null ? String(attendeesInitial) : "",
+      workFormat: workFormatInitial ?? "",
+      workNature: workNatureInitial ?? "",
+      eventSize: eventSizeInitial ?? "",
+      eventType: eventTypeInitial ?? "",
+    });
     setEquipment(initialEquipment);
     setShowHistory(false);
     setHistoryError(false);
@@ -120,7 +203,18 @@ export default function ManageEquipmentModal({
       finally { setIsLoadingHistory(false); }
     };
     loadHistory();
-  }, [open, eventId, startDateInitial, endDateInitial, initialEquipment]);
+  }, [
+    open,
+    eventId,
+    startDateInitial,
+    endDateInitial,
+    attendeesInitial,
+    workFormatInitial,
+    workNatureInitial,
+    eventSizeInitial,
+    eventTypeInitial,
+    initialEquipment,
+  ]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -146,9 +240,15 @@ export default function ManageEquipmentModal({
   }, [isEquipOpen]);
 
   const validate = () => {
-    const e: { startDate?: string; endDate?: string } = {};
+    const e: { startDate?: string; endDate?: string; attendees?: string } = {};
     if (!startDate) e.startDate = "กรุณาเลือกวันเบิกอุปกรณ์";
     if (!endDate) e.endDate = "กรุณาเลือกวันคืนอุปกรณ์";
+    if (
+      workDetails.attendees.trim() &&
+      (Number.isNaN(Number(workDetails.attendees)) || Number(workDetails.attendees) < 0)
+    ) {
+      e.attendees = "จำนวนผู้ร่วมงานต้องเป็นตัวเลข 0 ขึ้นไป";
+    }
     const today = toDateLocal(toYMD(new Date()));
     if (startDate && toDateLocal(startDate) < today) {
       e.startDate = "วันเบิกอุปกรณ์ต้องไม่ย้อนหลัง";
@@ -258,7 +358,21 @@ export default function ManageEquipmentModal({
   };
 
   const handleDecision = async (decision: "approved" | "rejected") => {
-    await onSubmitDecision({ startDate, endDate, equipment, decision });
+    const attendees = workDetails.attendees.trim()
+      ? Math.max(0, Math.floor(Number(workDetails.attendees)))
+      : null;
+
+    await onSubmitDecision({
+      startDate,
+      endDate,
+      attendees,
+      workFormat: workDetails.workFormat.trim(),
+      workNature: workDetails.workNature.trim(),
+      eventSize: workDetails.eventSize.trim(),
+      eventType: workDetails.eventType.trim(),
+      equipment,
+      decision,
+    });
     setIsDecisionOpen(false);
     onClose();
   };
@@ -304,6 +418,63 @@ export default function ManageEquipmentModal({
                 </div>
               </div>
 
+              <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4">
+                <div className="text-sm font-semibold text-zinc-900">ข้อมูลรูปแบบงาน</div>
+                <div className="mt-1 text-xs text-zinc-500">ข้อมูลส่วนนี้จะแสดงในใบสั่งงาน</div>
+
+                <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <WorkDetailInput
+                    label="รูปแบบงาน"
+                    value={workDetails.workFormat}
+                    placeholder="เช่น บูธแสดงสินค้า / โรดโชว์"
+                    onChange={(value) =>
+                      setWorkDetails((current) => ({ ...current, workFormat: value }))
+                    }
+                  />
+
+                  <WorkDetailInput
+                    label="จำนวนผู้ร่วมงาน"
+                    value={workDetails.attendees}
+                    placeholder="กรอกจำนวนผู้ร่วมงาน"
+                    type="number"
+                    error={errors.attendees}
+                    onChange={(value) => {
+                      setWorkDetails((current) => ({ ...current, attendees: value }));
+                      setErrors((current) => ({ ...current, attendees: undefined }));
+                    }}
+                  />
+
+                  <WorkDetailInput
+                    label="ลักษณะงาน"
+                    value={workDetails.workNature}
+                    placeholder="เช่น Indoor / Outdoor"
+                    onChange={(value) =>
+                      setWorkDetails((current) => ({ ...current, workNature: value }))
+                    }
+                  />
+
+                  <WorkDetailInput
+                    label="ขนาดการจัดงาน"
+                    value={workDetails.eventSize}
+                    placeholder="เช่น ขนาดเล็ก / กลาง / ใหญ่"
+                    onChange={(value) =>
+                      setWorkDetails((current) => ({ ...current, eventSize: value }))
+                    }
+                  />
+
+                  <div className="md:col-span-2">
+                    <WorkDetailInput
+                      label="ประเภทงาน"
+                      value={workDetails.eventType}
+                      placeholder="เช่น งานขาย / งานเปิดตัว / งานประชาสัมพันธ์"
+                      onChange={(value) =>
+                        setWorkDetails((current) => ({ ...current, eventType: value }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="mt-5 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold text-zinc-900">อุปกรณ์ที่เลือก ({equipment.length})</div>
                 <button onClick={openSelect} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700">
@@ -313,7 +484,7 @@ export default function ManageEquipmentModal({
 
               {hasInsufficient && (
                 <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  ⚠️ มีอุปกรณ์ไม่เพียงพอ สามารถอนุมัติได้ แต่กรุณาตรวจสอบรายการที่ขึ้นสถานะ "ไม่พอ"
+                  ⚠️ มีอุปกรณ์ไม่เพียงพอ สามารถอนุมัติได้ แต่กรุณาตรวจสอบรายการที่ขึ้นสถานะ &quot;ไม่พอ&quot;
                 </div>
               )}
 
@@ -323,7 +494,7 @@ export default function ManageEquipmentModal({
                     <Boxes className="h-6 w-6" />
                   </div>
                   <div className="mt-3 text-sm font-semibold text-zinc-800">ยังไม่ได้เลือกอุปกรณ์</div>
-                  <div className="mt-1 text-sm text-zinc-500">คลิกปุ่ม "เพิ่มอุปกรณ์" เพื่อเริ่มเลือกอุปกรณ์</div>
+                  <div className="mt-1 text-sm text-zinc-500">คลิกปุ่ม &quot;เพิ่มอุปกรณ์&quot; เพื่อเริ่มเลือกอุปกรณ์</div>
                 </div>
               ) : (
                 <div className="mt-3 space-y-3">
@@ -464,7 +635,6 @@ export default function ManageEquipmentModal({
                         setIsEquipOpen(true);
                       }}
                       onFocus={() => setIsEquipOpen(true)}
-                      onBlur={() => setTimeout(() => setIsEquipOpen(false), 150)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && filteredEquipmentOptions.length > 0) {
                           e.preventDefault();
@@ -485,8 +655,9 @@ export default function ManageEquipmentModal({
                             {equipmentOptions.length === 0 ? "ไม่มีอุปกรณ์ที่พร้อมใช้" : "ไม่พบอุปกรณ์ที่ตรงกับคำค้นหา"}
                           </div>
                         ) : (
-                          filteredEquipmentOptions.map((opt) => (
-                            <button key={opt.name} type="button"
+                          filteredEquipmentOptions.map((opt, index) => (
+                            <button key={`${opt.name}-${index}`} type="button"
+                              onMouseDown={(event) => event.preventDefault()}
                               onClick={() => handleSelectEquip(opt)}
                               className={["flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition", opt.name === selectedName ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-50"].join(" ")}>
                               {opt.name} (พร้อมใช้: {opt.available})
@@ -544,18 +715,71 @@ export default function ManageEquipmentModal({
         <div className="fixed inset-0 z-[170]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsDecisionOpen(false)} />
           <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl">
-              <div className="text-lg font-semibold text-zinc-900">ยืนยันการบันทึกผล</div>
-              <div className="mt-2 text-sm text-zinc-500">ต้องการบันทึกอีเวนต์นี้เป็นแบบไหน</div>
+            <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-zinc-100 px-5 py-4">
+                <div>
+                  <div className="text-lg font-semibold text-zinc-900">ยืนยันการบันทึกผล</div>
+                  <div className="mt-1 text-sm text-zinc-500">เลือกสถานะที่ต้องการบันทึกให้อีเวนต์นี้</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsDecisionOpen(false)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700"
+                  aria-label="ปิด"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="px-5 py-5">
               {hasInsufficient && (
-                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                  ⚠️ มีอุปกรณ์ไม่เพียงพอ {insufficientItems.length} รายการ ยืนยันจะอนุมัติต่อไปใช่ไหม?
+                <div className="mb-4 flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    มีอุปกรณ์ไม่เพียงพอ {insufficientItems.length} รายการ หากอนุมัติ ระบบจะบันทึกต่อไป
+                  </span>
                 </div>
               )}
-              <div className="mt-5 grid grid-cols-1 gap-3">
-                <button onClick={() => handleDecision("approved")} className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700">อนุมัติ</button>
-                <button onClick={() => handleDecision("rejected")} className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white hover:bg-red-700">ไม่อนุมัติ</button>
-                <button onClick={() => setIsDecisionOpen(false)} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">ยกเลิก</button>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDecision("approved")}
+                    className="group flex items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100 transition group-hover:bg-emerald-100">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-zinc-900">อนุมัติ</span>
+                      <span className="mt-1 block text-xs leading-5 text-zinc-500">บันทึกและอนุมัติอีเวนต์</span>
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDecision("rejected")}
+                    className="group flex items-start gap-3 rounded-2xl border border-red-200 bg-white p-4 text-left transition hover:border-red-300 hover:bg-red-50"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100 transition group-hover:bg-red-100">
+                      <XCircle className="h-5 w-5" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-zinc-900">ไม่อนุมัติ</span>
+                      <span className="mt-1 block text-xs leading-5 text-zinc-500">บันทึกเป็นไม่อนุมัติ</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end border-t border-zinc-100 bg-zinc-50 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setIsDecisionOpen(false)}
+                  className="h-10 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
+                >
+                  ยกเลิก
+                </button>
               </div>
             </div>
           </div>

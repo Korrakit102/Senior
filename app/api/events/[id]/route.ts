@@ -104,6 +104,18 @@ function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function optionalTextValue(value: unknown, fallback: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : fallback ?? "";
+}
+
+function optionalAttendeesValue(value: unknown, fallback: number | null): number | null {
+  if (value === null || value === "") return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+  return fallback;
+}
+
 function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
 
@@ -332,6 +344,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
+  const current = await getEventById(id);
+  if (!current) {
+    return NextResponse.json({ error: "event not found" }, { status: 404 });
+  }
+
   const decision = body.decision === "approved" ? "approved" : "rejected";
   const rowCount = await updateEventDecision({
     id,
@@ -341,6 +358,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     statusText: decision === "approved" ? "อนุมัติแล้ว" : "ไม่อนุมัติ",
     statusTone: decision === "approved" ? "success" : "rejected",
     equipment: body.equipment,
+    attendees: optionalAttendeesValue(body.attendees, current.attendees),
+    workFormat: optionalTextValue(body.workFormat, current.work_format),
+    workNature: optionalTextValue(body.workNature, current.work_nature),
+    eventSize: optionalTextValue(body.eventSize, current.event_size),
+    eventType: optionalTextValue(body.eventType, current.event_type),
   });
 
   if (rowCount === 0) {

@@ -22,6 +22,10 @@ export type EventItem = {
   branchCode?: string;
   budgetTHB?: number;
   attendees?: number;
+  workFormat?: string;
+  workNature?: string;
+  eventSize?: string;
+  eventType?: string;
 
   // ✅ เพิ่ม: ติดตามว่า stockkeeper Issue ไปแล้วหรือยัง
   // ถ้า true = ล็อคปุ่มแก้ไขอุปกรณ์

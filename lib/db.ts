@@ -87,6 +87,10 @@ export type EventRow = {
   branch_code: string | null;
   budget_thb: number | null;
   attendees: number | null;
+  work_format: string | null;
+  work_nature: string | null;
+  event_size: string | null;
+  event_type: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   customer_email: string | null;
@@ -282,6 +286,22 @@ async function ensureEventsTable(client?: PoolClient) {
     await c.query(`
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS work_order_sales_targets JSONB NOT NULL DEFAULT '{"rows":[],"totals":{"bookingTarget":"","interestedTarget":""},"carModelOptions":[]}'::jsonb;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS work_format TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS work_nature TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS event_size TEXT;
+    `);
+    await c.query(`
+      ALTER TABLE events
+      ADD COLUMN IF NOT EXISTS event_type TEXT;
     `);
     // ข้อมูลเก่าที่คืนอุปกรณ์แล้วแต่ยังไม่มีใบเสร็จ ต้องกลับเข้าขั้นตอนรอชำระเงินตาม flow ใหม่
     await c.query(`
@@ -645,7 +665,7 @@ export async function listEvents(): Promise<EventRow[]> {
     const res: QueryResult<EventRow> = await client.query(
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
+         organizer, branch_code, budget_thb, attendees, work_format, work_nature, event_size, event_type, contact_name, contact_phone,
          customer_email, customer_tax_id, equipment, work_order_sales_targets,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events ORDER BY created_at DESC, id DESC`
@@ -664,7 +684,7 @@ export async function getEventById(id: string): Promise<EventRow | null> {
     const res: QueryResult<EventRow> = await client.query(
       `SELECT id, title, status_text, status_tone, issue_status, is_damaged, created_at,
          description, company, place, start_date, end_date, items_count,
-         organizer, branch_code, budget_thb, attendees, contact_name, contact_phone,
+         organizer, branch_code, budget_thb, attendees, work_format, work_nature, event_size, event_type, contact_name, contact_phone,
          customer_email, customer_tax_id, equipment, work_order_sales_targets,
          receipt_file_name, receipt_file_type, receipt_data_url, receipt_uploaded_at, receipt_file_path
        FROM events WHERE id = $1 LIMIT 1`,
@@ -693,6 +713,10 @@ export async function insertEvent(payload: {
   branchCode?: string;
   budgetTHB?: number;
   attendees?: number;
+  workFormat?: string;
+  workNature?: string;
+  eventSize?: string;
+  eventType?: string;
   contactName?: string;
   contactPhone?: string;
   customerEmail?: string;
@@ -706,14 +730,17 @@ export async function insertEvent(payload: {
       `INSERT INTO events (
         id, title, status_text, status_tone, created_at, description, company, place,
         start_date, end_date, items_count, organizer, branch_code, budget_thb, attendees,
+        work_format, work_nature, event_size, event_type,
         contact_name, contact_phone, customer_email, customer_tax_id, equipment, issue_status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb, $21)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::jsonb, $25)`,
       [
         payload.id, payload.title, payload.statusText, payload.statusTone,
         payload.createdAt, payload.description, payload.company, payload.place,
         payload.startDate, payload.endDate, payload.itemsCount,
         payload.organizer ?? null, payload.branchCode ?? null,
         payload.budgetTHB ?? null, payload.attendees ?? null,
+        payload.workFormat ?? null, payload.workNature ?? null,
+        payload.eventSize ?? null, payload.eventType ?? null,
         payload.contactName ?? null, payload.contactPhone ?? null,
         payload.customerEmail ?? null, payload.customerTaxId ?? null,
         JSON.stringify(payload.equipment ?? []), "ready",
@@ -792,6 +819,11 @@ export async function updateEventDecision(payload: {
   statusText: string;
   statusTone: EventStatusTone;
   equipment: EventEquipmentRow[];
+  attendees: number | null;
+  workFormat: string;
+  workNature: string;
+  eventSize: string;
+  eventType: string;
 }) {
   const client = await pool.connect();
   try {
@@ -805,11 +837,18 @@ export async function updateEventDecision(payload: {
          status_text = $5,
          status_tone = $6,
          equipment = $7::jsonb,
+         attendees = $8,
+         work_format = $9,
+         work_nature = $10,
+         event_size = $11,
+         event_type = $12,
          issue_status = CASE WHEN $6 = 'pending' THEN 'ready' ELSE issue_status END
        WHERE id = $1`,
       [
         payload.id, payload.startDate, payload.endDate, payload.itemsCount,
         payload.statusText, payload.statusTone, JSON.stringify(payload.equipment),
+        payload.attendees, payload.workFormat, payload.workNature,
+        payload.eventSize, payload.eventType,
       ]
     );
     return res.rowCount ?? 0;
@@ -1376,8 +1415,9 @@ export async function resolveRepairingStock(payload: {
       cost: number;
       billed_cost: number | null;
       status: string;
+      photo_paths: string[] | null;
     }>(
-      `SELECT id, item_name, code, event_date, event_id, COALESCE(qty, 0)::int AS qty, cost, billed_cost, status
+      `SELECT id, item_name, code, event_date, event_id, COALESCE(qty, 0)::int AS qty, cost, billed_cost, status, photo_paths
        FROM damage_items WHERE id = $1 FOR UPDATE`,
       [payload.damageItemId]
     );
@@ -1426,9 +1466,9 @@ export async function resolveRepairingStock(payload: {
       const splitId = `DMG-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
 
       await client.query(
-        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, resolved_codes, note, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
-        [splitId, lot.event_id, lot.item_name, lot.code, lot.event_date, payload.quantity, portionCost, portionBilled, resolvedStatus, resolvedCodes, note]
+        `INSERT INTO damage_items (id, event_id, item_name, code, event_date, qty, cost, billed_cost, status, resolved_codes, note, created_at, photo_paths)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)`,
+        [splitId, lot.event_id, lot.item_name, lot.code, lot.event_date, payload.quantity, portionCost, portionBilled, resolvedStatus, resolvedCodes, note, lot.photo_paths ?? []]
       );
       await client.query(
         `UPDATE damage_items
@@ -1601,8 +1641,35 @@ export async function listDamageItems(): Promise<DamageItemRow[]> {
   try {
     await ensureDamageItemsTable(client);
     const res: QueryResult<DamageItemRow> = await client.query(
-      `SELECT id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at, photo_paths, note
-       FROM damage_items ORDER BY created_at DESC`
+      `SELECT
+         d.id,
+         d.event_id,
+         d.item_name,
+         d.code,
+         d.event_date,
+         d.qty,
+         d.cost,
+         d.billed_cost,
+         d.resolved_codes,
+         d.status,
+         d.created_at,
+         CASE
+           WHEN d.photo_paths IS NOT NULL AND cardinality(d.photo_paths) > 0 THEN d.photo_paths
+           ELSE fallback.photo_paths
+         END AS photo_paths,
+         d.note
+       FROM damage_items d
+       LEFT JOIN LATERAL (
+         SELECT d2.photo_paths
+         FROM damage_items d2
+         WHERE d2.event_id = d.event_id
+           AND LOWER(TRIM(d2.item_name)) = LOWER(TRIM(d.item_name))
+           AND d2.photo_paths IS NOT NULL
+           AND cardinality(d2.photo_paths) > 0
+         ORDER BY d2.created_at ASC
+         LIMIT 1
+       ) fallback ON TRUE
+       ORDER BY d.created_at DESC`
     );
     return res.rows;
   } finally {
@@ -1627,7 +1694,7 @@ export async function updateDamageItemAmounts(payload: {
       `UPDATE damage_items
        SET cost = $2, billed_cost = $3
        WHERE id = $1
-       RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at`,
+       RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at, photo_paths, note`,
       [payload.id, payload.cost, payload.billedCost]
     );
 
@@ -1641,7 +1708,7 @@ export async function updateDamageItemAmounts(payload: {
            ORDER BY created_at DESC
            LIMIT 1
          )
-         RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at`,
+         RETURNING id, event_id, item_name, code, event_date, qty, cost, billed_cost, resolved_codes, status, created_at, photo_paths, note`,
         [payload.eventId, payload.itemName, payload.cost, payload.billedCost]
       );
     }

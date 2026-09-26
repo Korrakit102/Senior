@@ -377,6 +377,7 @@ export default function ReceiveStockModal({
                         <button
                           key={row.id}
                           type="button"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => handleSelectItem(row)}
                           className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-zinc-50"
                         >

@@ -9,6 +9,7 @@ import type {
   WorkOrderSalesTargetTotals,
   WorkOrderSalesTargets,
 } from "../types";
+import { downloadElementAsPdf } from "./downloadPdf";
 import { useDocumentSettings, type DocumentSettings } from "./useDocumentSettings";
 
 interface Props {
@@ -150,6 +151,7 @@ function WorkOrderModalBody({
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [isSavingTargets, setIsSavingTargets] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [carModelOptions, setCarModelOptions] = useState(initialSalesTargets.carModelOptions);
 
   const docNo = `WO-${event.id}`;
@@ -238,36 +240,18 @@ function WorkOrderModalBody({
     );
   };
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!printRef.current) return;
-    const content = printRef.current.innerHTML;
-    const filename = `${docNo}_ใบสั่งงาน`;
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { alert("กรุณาอนุญาตป๊อปอัปในเบราว์เซอร์เพื่อส่งออก PDF"); return; }
-    win.document.write(`<!DOCTYPE html>
-<html><head>
-  <meta charset="UTF-8"><title>${filename}</title>
-  <style>
-    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    *, *::before, *::after { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    body { margin: 0; padding: 12mm; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; color: #111; }
-    @page { size: A4; margin: 12mm; }
-    @media print { body { padding: 0; } }
-    table { border-collapse: collapse; width: 100%; }
-    td, th { vertical-align: top; }
-    .print-red-tint {
-      background-color: #fef2f2 !important;
-      box-shadow: inset 0 0 0 9999px #fef2f2 !important;
+
+    setIsDownloadingPdf(true);
+    try {
+      await downloadElementAsPdf(printRef.current, `${docNo}_ใบสั่งงาน`);
+    } catch (error) {
+      console.error("Failed to download work order PDF", error);
+      alert("ไม่สามารถดาวน์โหลด PDF ได้ กรุณาลองใหม่");
+    } finally {
+      setIsDownloadingPdf(false);
     }
-  </style>
-</head><body>
-  <div style="font-family:sans-serif;font-size:11px;color:#111;max-width:780px;margin:0 auto;">${content}</div>
-  <script>
-    window.addEventListener('load', function() { setTimeout(function() { window.print(); }, 300); });
-    window.addEventListener('afterprint', function() { window.close(); });
-  <\/script>
-</body></html>`);
-    win.document.close();
   }, [docNo]);
 
   const numDays = daysBetween(event.startDate, event.endDate);
@@ -289,10 +273,11 @@ function WorkOrderModalBody({
           <div className="flex items-center gap-3">
             <button
               onClick={handleDownload}
-              className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              disabled={isDownloadingPdf}
+              className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Download className="h-4 w-4" />
-              ดาวน์โหลด PDF
+              {isDownloadingPdf ? "กำลังสร้าง PDF..." : "ดาวน์โหลด PDF"}
             </button>
             <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-xl text-zinc-400 hover:bg-zinc-100">
               <X className="h-4 w-4" />
@@ -761,16 +746,16 @@ function WorkOrderContent({
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 10.5 }}>
         <tbody>
           <tr>
-            <Cell label="รูปแบบงาน" value="-" />
+            <Cell label="รูปแบบงาน" value={s(event.workFormat)} />
             <Cell label="จำนวนผู้ร่วมงาน" value={event.attendees ? `${event.attendees} คน` : "-"} />
           </tr>
           <tr>
-            <Cell label="ลักษณะงาน" value="-" />
-            <Cell label="ขนาดการจัดงาน" value="-" />
+            <Cell label="ลักษณะงาน" value={s(event.workNature)} />
+            <Cell label="ขนาดการจัดงาน" value={s(event.eventSize)} />
           </tr>
           <tr>
             <td colSpan={4} style={{ border: "1px solid #e4e4e7", padding: "3px 8px" }}>
-              <span style={{ color: "#888" }}>ประเภทงาน: </span>-
+              <span style={{ color: "#888" }}>ประเภทงาน: </span>{s(event.eventType)}
             </td>
           </tr>
         </tbody>

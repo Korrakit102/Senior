@@ -4,6 +4,8 @@ export type AppStock = AppStockRow;
 
 export type ReportTab = "finance" | "stock" | "events" | "damage" | "docs";
 
+export type EventStatusFilter = "all" | "pending" | "approved";
+
 export type DocCategory =
   | "invoice"
   | "quotation"
@@ -58,6 +60,10 @@ export type EventReportRow = {
   branchCode?: string;
   budgetTHB?: number;
   attendees?: number;
+  workFormat?: string;
+  workNature?: string;
+  eventSize?: string;
+  eventType?: string;
   description?: string;
   equipment: EventEquipmentItem[];
   workOrderSalesTargets?: WorkOrderSalesTargets;

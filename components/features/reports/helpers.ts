@@ -4,6 +4,7 @@ import type {
   DamageRow,
   DocCategory,
   DocRow,
+  EventStatusFilter,
   EventReportRow,
   FinanceSummary,
   ReportTab,
@@ -93,11 +94,24 @@ export function filterStockRows(rows: StockReportRow[], query: string) {
   );
 }
 
-export function filterEventRows(rows: EventReportRow[], query: string) {
-  const s = query.trim().toLowerCase();
-  if (!s) return rows;
+export function filterEventRows(
+  rows: EventReportRow[],
+  query: string,
+  statusFilter: EventStatusFilter = "all"
+) {
+  let filtered = rows;
 
-  return rows.filter((e) =>
+  if (statusFilter !== "all") {
+    filtered = filtered.filter((e) => {
+      const isPending = e.status.tone === "pending" || e.status.text === "รออนุมัติ";
+      return statusFilter === "pending" ? isPending : !isPending;
+    });
+  }
+
+  const s = query.trim().toLowerCase();
+  if (!s) return filtered;
+
+  return filtered.filter((e) =>
     [e.title, e.company, e.id].some((v) => v.toLowerCase().includes(s))
   );
 }

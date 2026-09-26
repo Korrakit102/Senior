@@ -16,6 +16,15 @@ type Props = {
   totalValue: number;
 };
 
+type StatusFilterValue = "ทั้งหมด" | ItemStatus;
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilterValue; label: string }[] = [
+  { value: "ทั้งหมด", label: "สถานะทั้งหมด" },
+  { value: "พร้อมใช้", label: "พร้อมใช้" },
+  { value: "ใช้งานอยู่", label: "ใช้งานอยู่" },
+  { value: "ซ่อมแซม", label: "ซ่อมแซม" },
+];
+
 export default function StockFilters({
   q,
   status,
@@ -42,21 +51,7 @@ export default function StockFilters({
             />
           </div>
 
-          <div className="relative md:w-[220px]">
-            <select
-              value={status}
-              onChange={(e) =>
-                onStatusChange(e.target.value as "ทั้งหมด" | ItemStatus)
-              }
-              className="h-[52px] w-full appearance-none rounded-2xl border border-zinc-200 bg-white px-4 pr-10 text-sm font-semibold text-zinc-800 shadow-sm outline-none hover:bg-zinc-50"
-            >
-              <option value="ทั้งหมด">สถานะทั้งหมด</option>
-              <option value="พร้อมใช้">พร้อมใช้</option>
-              <option value="ใช้งานอยู่">ใช้งานอยู่</option>
-              <option value="ซ่อมแซม">ซ่อมแซม</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-          </div>
+          <StatusDropdown value={status} onChange={onStatusChange} />
 
           <CategoryMultiDropdown
             value={categories}
@@ -82,6 +77,143 @@ export default function StockFilters({
         </div>
       </div>
     </>
+  );
+}
+
+function StatusDropdown({
+  value,
+  onChange,
+}: {
+  value: StatusFilterValue;
+  onChange: (value: StatusFilterValue) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const filtered = useMemo(() => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return STATUS_FILTER_OPTIONS;
+
+    return STATUS_FILTER_OPTIONS.filter((option) =>
+      option.label.toLowerCase().includes(keyword)
+    );
+  }, [query]);
+
+  const label =
+    STATUS_FILTER_OPTIONS.find((option) => option.value === value)?.label ??
+    "สถานะทั้งหมด";
+
+  const select = (nextValue: StatusFilterValue) => {
+    onChange(nextValue);
+    setOpen(false);
+    setQuery("");
+  };
+
+  const openDropdown = () => {
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  return (
+    <div ref={ref} className="relative md:w-[220px]">
+      <button
+        type="button"
+        onClick={() => (open ? setOpen(false) : openDropdown())}
+        className="flex h-[52px] w-full items-center justify-between gap-2 rounded-2xl border border-zinc-200 bg-white px-4 text-left text-sm font-semibold text-zinc-800 shadow-sm outline-none hover:bg-zinc-50"
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+          <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-2.5">
+            <Search className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหาสถานะ..."
+              className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-zinc-300 hover:text-zinc-500"
+                aria-label="ล้างคำค้นหา"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-72 overflow-auto py-1">
+            {filtered.map((option) => {
+              const active = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => select(option.value)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm text-zinc-700 transition hover:bg-zinc-50"
+                >
+                  <span
+                    className={`grid h-4 w-4 place-items-center rounded border ${
+                      active
+                        ? "border-blue-500 bg-blue-500 text-white"
+                        : "border-zinc-300 bg-white"
+                    }`}
+                  >
+                    {active && <Check className="h-3 w-3" />}
+                  </span>
+                  <span className="truncate">{option.label}</span>
+                </button>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <div className="px-3 py-4 text-center text-sm text-zinc-400">
+                ไม่พบสถานะที่ค้นหา
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

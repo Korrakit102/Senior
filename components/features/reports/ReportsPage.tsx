@@ -8,6 +8,7 @@ import type {
   DocCategory,
   DocRow,
   EventReportRow,
+  EventStatusFilter,
   FinanceSummary,
   ReportTab,
   WorkOrderSalesTargets,
@@ -131,6 +132,7 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   const [isAddDocOpen, setIsAddDocOpen] = useState(false);
   const [docCategory, setDocCategory] = useState<"all" | DocCategory>("all");
   const [docSort, setDocSort] = useState<"newest" | "oldest">("newest");
+  const [eventStatusFilter, setEventStatusFilter] = useState<EventStatusFilter>("all");
   const [eventReportRows, setEventReportRows] = useState<EventReportRow[]>([]);
   const [persistedDamageRows, setPersistedDamageRows] = useState<DamageRow[]>([]);
   const [invoiceEvent, setInvoiceEvent] = useState<EventReportRow | null>(null);
@@ -286,6 +288,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
           branchCode?: string;
           budgetTHB?: number;
           attendees?: number;
+          workFormat?: string;
+          workNature?: string;
+          eventSize?: string;
+          eventType?: string;
           desc?: string;
           workOrderSalesTargets?: WorkOrderSalesTargets;
           status: {
@@ -329,6 +335,10 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
               branchCode: r.branchCode,
               budgetTHB: r.budgetTHB,
               attendees: r.attendees,
+              workFormat: r.workFormat,
+              workNature: r.workNature,
+              eventSize: r.eventSize,
+              eventType: r.eventType,
               description: r.desc,
               equipment,
               workOrderSalesTargets: r.workOrderSalesTargets,
@@ -466,8 +476,8 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
   );
 
   const filteredEvents = useMemo(
-    () => filterEventRows(eventReportRows, query),
-    [eventReportRows, query]
+    () => filterEventRows(eventReportRows, query, eventStatusFilter),
+    [eventReportRows, query, eventStatusFilter]
   );
 
   const filteredDamage = useMemo(
@@ -646,6 +656,8 @@ export default function ReportsPage({ role, stockData, extraDamageRows }: Props)
         query={query}
         onQueryChange={setQuery}
         searchPlaceholder={searchPlaceholder}
+        eventStatusFilter={eventStatusFilter}
+        onEventStatusFilterChange={setEventStatusFilter}
         docCategory={docCategory}
         onDocCategoryChange={setDocCategory}
         docSort={docSort}

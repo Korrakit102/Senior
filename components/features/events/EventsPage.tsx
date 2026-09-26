@@ -123,6 +123,8 @@ export default function EventsPage({
             customerEmail: r.customerEmail, customerTaxId: r.customerTaxId,
             branchCode: r.branchCode,
             budgetTHB: r.budgetTHB, attendees: r.attendees,
+            workFormat: r.workFormat, workNature: r.workNature,
+            eventSize: r.eventSize, eventType: r.eventType,
             isIssued: r.issueStatus === "inuse",
             paymentReceipt: r.paymentReceipt,
           };
@@ -167,6 +169,8 @@ export default function EventsPage({
               customerEmail: r.customerEmail, customerTaxId: r.customerTaxId,
               branchCode: r.branchCode,
               budgetTHB: r.budgetTHB, attendees: r.attendees,
+              workFormat: r.workFormat, workNature: r.workNature,
+              eventSize: r.eventSize, eventType: r.eventType,
               isIssued: r.issueStatus === "inuse",
               paymentReceipt: r.paymentReceipt,
             };
@@ -381,6 +385,8 @@ export default function EventsPage({
         organizer: payload.organizer, contactName: payload.contactName,
         contactPhone: payload.contactPhone, branchCode: payload.branchCode,
         budgetTHB: payload.budgetTHB, attendees: payload.attendees,
+        workFormat: undefined, workNature: undefined,
+        eventSize: undefined, eventType: undefined,
         paymentReceipt: undefined,
       };
       setEvents((prev) => [newEvent, ...prev]);
@@ -523,10 +529,25 @@ export default function EventsPage({
         eventTitle={activeEvent?.title ?? ""}
         startDateInitial={activeEvent ? parseDateRange(activeEvent.date).startStr : ""}
         endDateInitial={activeEvent ? parseDateRange(activeEvent.date).endStr : ""}
+        attendeesInitial={activeEvent?.attendees}
+        workFormatInitial={activeEvent?.workFormat}
+        workNatureInitial={activeEvent?.workNature}
+        eventSizeInitial={activeEvent?.eventSize}
+        eventTypeInitial={activeEvent?.eventType}
         initialEquipment={manageEventId ? equipmentByEvent[manageEventId] ?? [] : []}
         stockData={stockData}
         onClose={() => { setIsManageOpen(false); setManageEventId(null); }}
-        onSubmitDecision={async ({ startDate, endDate, equipment, decision }) => {
+        onSubmitDecision={async ({
+          startDate,
+          endDate,
+          attendees,
+          workFormat,
+          workNature,
+          eventSize,
+          eventType,
+          equipment,
+          decision,
+        }) => {
           if (!manageEventId) return;
           const targetEvent = events.find((ev) => ev.id === manageEventId);
           const oldEquipment = equipmentByEvent[manageEventId];
@@ -534,7 +555,17 @@ export default function EventsPage({
             const res = await fetch(`/api/events/${manageEventId}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ startDate, endDate, equipment, decision }),
+              body: JSON.stringify({
+                startDate,
+                endDate,
+                attendees,
+                workFormat,
+                workNature,
+                eventSize,
+                eventType,
+                equipment,
+                decision,
+              }),
             });
             if (!res.ok) throw new Error("failed");
             // อัปเดต UI เฉพาะหลัง API สำเร็จ
@@ -548,6 +579,11 @@ export default function EventsPage({
                 ...ev,
                 date: `${startDate} - ${endDate}`,
                 items: `${equipment.length} รายการ`,
+                attendees: attendees ?? undefined,
+                workFormat,
+                workNature,
+                eventSize,
+                eventType,
                 status: decision === "approved"
                   ? { text: "อนุมัติแล้ว", tone: "success" as const }
                   : { text: "ไม่อนุมัติ", tone: "rejected" as const },

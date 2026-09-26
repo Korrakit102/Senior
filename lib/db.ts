@@ -1311,6 +1311,17 @@ export async function adjustStock(
   }
 }
 
+export type StockShortage = { name: string; requested: number; available: number };
+
+// โยนเมื่อเบิกเกินจำนวน available ในสต็อก — route เช็คจาก message "insufficient stock" แล้วแปลงเป็น 409
+// (ไฟล์ "use server" export ได้แค่ async function จึง export class นี้ไม่ได้)
+class InsufficientStockError extends Error {
+  constructor(public readonly shortages: StockShortage[]) {
+    super("insufficient stock");
+    this.name = "InsufficientStockError";
+  }
+}
+
 // เบิกอุปกรณ์แบบด่วน: รวมอุปกรณ์เข้า equipment ของ Event + หักสต็อกจริง ในธุรกรรมเดียวกัน
 // กันปัญหา Event บอกว่าเบิกแล้วแต่ตัวเลขสต็อกไม่ลดตาม ถ้าขั้นตอนใดขั้นตอนหนึ่งพลาดกลางทาง
 export async function issueEquipmentAtomic(payload: {
@@ -1333,6 +1344,31 @@ export async function issueEquipmentAtomic(payload: {
       throw new Error("event not found");
     }
     const currentEquipment = Array.isArray(cur.rows[0].equipment) ? cur.rows[0].equipment : [];
+
+    // เช็คสต็อกพอก่อนเขียนอะไรทั้งนั้น: รวมจำนวนต่อชื่อ (กันส่งชื่อซ้ำหลายแถว) แล้วล็อกแถวสต็อก
+    // เรียงตาม id กัน deadlock ถ้ามีการเบิกพร้อมกัน — ชื่อที่ไม่มีในสต็อกถือว่า available = 0
+    // (name ไม่ unique และ deductStockItemTx หักทุกแถวที่ชื่อตรง จึงใช้ available ต่ำสุดของชื่อนั้น)
+    const requestedByName = new Map<string, number>();
+    for (const item of payload.incomingEquipment) {
+      requestedByName.set(item.name, (requestedByName.get(item.name) ?? 0) + item.qty);
+    }
+    const stockRows = await client.query<{ name: string; available: number }>(
+      `SELECT name, available FROM stock_items WHERE name = ANY($1::text[]) ORDER BY id FOR UPDATE`,
+      [Array.from(requestedByName.keys())]
+    );
+    const availableByName = new Map<string, number>();
+    for (const row of stockRows.rows) {
+      availableByName.set(row.name, Math.min(availableByName.get(row.name) ?? Infinity, row.available));
+    }
+    const shortages = Array.from(requestedByName, ([name, requested]) => ({
+      name,
+      requested,
+      available: availableByName.get(name) ?? 0,
+    })).filter((s) => s.requested > s.available);
+    if (shortages.length > 0) {
+      await client.query("ROLLBACK");
+      throw new InsufficientStockError(shortages);
+    }
 
     const byName = new Map<string, EventEquipmentRow>();
     for (const item of currentEquipment) byName.set(item.name, { ...item });

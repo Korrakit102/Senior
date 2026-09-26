@@ -15,7 +15,7 @@ import {
   updateEventPaymentReceipt,
   updateEventWorkOrderSalesTargets,
 } from "@/lib/db";
-import type { EventEquipmentRow, StockRowDb, WorkOrderSalesTargets } from "@/lib/db";
+import type { EventEquipmentRow, StockRowDb, StockShortage, WorkOrderSalesTargets } from "@/lib/db";
 import { containsNullByte } from "@/lib/sanitize";
 
 function mapStockForResponse(rows: StockRowDb[]) {
@@ -131,6 +131,32 @@ function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || typeof value === "string";
+}
+
+// ตรวจรูปแบบเป้ายอดขายก่อนบันทึก: ต้องส่งมาครบทั้ง rows / totals / carModelOptions และชนิดถูกต้อง
+// (ถ้าไม่ตรวจ ค่าผิดชนิด เช่น string หรือ totals ที่ไม่ใช่ object จะถูก normalize เป็นค่าว่างแล้วเขียนทับข้อมูลเดิมเงียบๆ)
+function isValidWorkOrderSalesTargets(value: unknown): boolean {
+  if (!isPlainObject(value)) return false;
+  const { rows, totals, carModelOptions } = value;
+
+  if (!Array.isArray(rows)) return false;
+  const rowFields = ["id", "displayModel", "displayQty", "testDriveModel", "testDriveQty"];
+  if (!rows.every((row) => isPlainObject(row) && rowFields.every((key) => isOptionalString(row[key])))) {
+    return false;
+  }
+
+  if (!isPlainObject(totals)) return false;
+  if (!isOptionalString(totals.bookingTarget) || !isOptionalString(totals.interestedTarget)) return false;
+
+  return Array.isArray(carModelOptions) && carModelOptions.every((option) => typeof option === "string");
+}
+
 function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
   const source = value && typeof value === "object" ? value as Record<string, unknown> : {};
 
@@ -184,7 +210,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 
-  if (body?.workOrderSalesTargets) {
+  if (body?.workOrderSalesTargets !== undefined) {
+    if (!isValidWorkOrderSalesTargets(body.workOrderSalesTargets)) {
+      return NextResponse.json({ error: "invalid workOrderSalesTargets" }, { status: 400 });
+    }
+
     const current = await getEventById(id);
     if (!current) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
@@ -243,6 +273,16 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     } catch (err) {
       if (err instanceof Error && err.message === "event not found") {
         return NextResponse.json({ error: "event not found" }, { status: 404 });
+      }
+      if (err instanceof Error && err.message === "insufficient stock") {
+        const shortages = (err as Error & { shortages?: StockShortage[] }).shortages ?? [];
+        const detail = shortages
+          .map((s) => `${s.name} (ขอ ${s.requested}, คงเหลือ ${s.available})`)
+          .join(", ");
+        return NextResponse.json(
+          { error: `สต็อกไม่พอสำหรับการเบิก: ${detail}`, shortages },
+          { status: 409 }
+        );
       }
       throw err;
     }

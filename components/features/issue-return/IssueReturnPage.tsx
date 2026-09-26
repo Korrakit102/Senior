@@ -355,6 +355,12 @@ export default function IssueReturnPage({
           equipment: buildEventEquipmentPayload(items),
         }),
       });
+      // สต็อกไม่พอ (เช่น มีคนเบิกตัดหน้าไปก่อน) — backend ส่งรายการที่ไม่พอมาใน error ให้แสดงตรงๆ
+      if (res.status === 409) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setToast(data?.error ?? "สต็อกไม่พอสำหรับการเบิก");
+        return;
+      }
       if (!res.ok) throw new Error("failed to add event equipment");
 
       const data = (await res.json()) as QuickEquipmentResponse;

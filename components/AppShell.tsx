@@ -371,7 +371,7 @@ export default function AppShell() {
   const roleDropdownRef = React.useRef<HTMLDivElement | null>(null);
 
   const [stockData, setStockData] = useState<StockRow[]>(initialStock);
-  const [stockSaveError, setStockSaveError] = useState(false);
+  const [stockSaveError, setStockSaveError] = useState<string | null>(null);
 
   const [issuedEventIds, setIssuedEventIds] = useState<Set<string>>(new Set());
   const [damageReportRows, setDamageReportRows] = useState<DamageRow[]>([]);
@@ -447,10 +447,17 @@ export default function AppShell() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: next }),
-      }).catch(() => {
-        setStockData(prev);
-        setStockSaveError(true);
-      });
+      })
+        .then(async (res) => {
+          if (res.ok) return;
+          const data = await res.json().catch(() => null);
+          setStockData(prev);
+          setStockSaveError(data?.error || "บันทึกข้อมูลสต็อกไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว");
+        })
+        .catch(() => {
+          setStockData(prev);
+          setStockSaveError("บันทึกข้อมูลสต็อกไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว");
+        });
       return next;
     });
   };
@@ -485,7 +492,7 @@ export default function AppShell() {
         })
       );
     } catch {
-      setStockSaveError(true);
+      setStockSaveError("ปรับปรุงข้อมูลสต็อกไม่สำเร็จ");
     }
   };
 
@@ -497,11 +504,24 @@ export default function AppShell() {
     callAdjustStock("return", equipmentList);
   };
 
-  const markDamagedStock = (
-    equipmentList: { name: string; qty: number }[],
-    eventId?: string
+  // ใช้กับผลลัพธ์ที่ backend คำนวณ+อัปเดตสต็อกจริงมาให้แล้ว (เบิก/คืนอุปกรณ์แบบ atomic)
+  // แค่ sync state ฝั่ง client ตาม ไม่ต้องยิง request ปรับสต็อกซ้ำอีกรอบ
+  const applyStockRowsFromServer = (
+    rows: Array<{ id: string; qty: number; available: number; status: string; repairing: number }>
   ) => {
-    callAdjustStock("damage", equipmentList, eventId);
+    setStockData((prev) =>
+      prev.map((row) => {
+        const found = rows.find((r) => r.id === row.id);
+        if (!found) return row;
+        return {
+          ...row,
+          qty: found.qty,
+          available: found.available,
+          status: toItemStatus(found.status),
+          repairing: found.repairing,
+        };
+      })
+    );
   };
 
   const markEventAsIssued = (eventId: string) => {
@@ -694,9 +714,9 @@ export default function AppShell() {
       {stockSaveError && (
         <div className="fixed bottom-6 left-1/2 z-[300] -translate-x-1/2">
           <div className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-3 shadow-lg">
-            <span className="text-sm font-medium text-red-700">บันทึกข้อมูลสต็อกไม่สำเร็จ — ข้อมูลถูกย้อนกลับแล้ว</span>
+            <span className="text-sm font-medium text-red-700">{stockSaveError}</span>
             <button
-              onClick={() => setStockSaveError(false)}
+              onClick={() => setStockSaveError(null)}
               className="ml-2 text-xs font-semibold text-red-500 hover:text-red-700"
             >
               ปิด ✕
@@ -903,9 +923,7 @@ export default function AppShell() {
            key={tab}
            role={role}
             stockData={stockData}
-            onDeductStock={deductStock}
-            onReturnStock={returnStock}
-            onMarkDamagedStock={markDamagedStock}
+            onStockRowsUpdated={applyStockRowsFromServer}
             onMarkEventAsIssued={markEventAsIssued}
             onUnmarkEventAsIssued={unmarkEventAsIssued}
             onAddDamageRows={addDamageRows}

@@ -2,7 +2,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import type { EventRow } from "@/lib/db";
-import { insertEvent, listEvents } from "@/lib/db";
+import { allocateEventId, insertEvent, listEvents } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 function mapEvent(row: EventRow) {
   return {
@@ -46,16 +47,6 @@ function mapEvent(row: EventRow) {
   };
 }
 
-function nextEventId(rows: EventRow[]) {
-  let max = 0;
-  for (const row of rows) {
-    const match = row.id.match(/^EVT(\d+)$/);
-    if (!match) continue;
-    max = Math.max(max, Number(match[1]));
-  }
-  return `EVT${String(max + 1).padStart(3, "0")}`;
-}
-
 function canReturnEventForRole(row: EventRow, role: string | null) {
   if (role !== "Stockkeeper") return true;
 
@@ -68,14 +59,33 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(rows.filter((row) => canReturnEventForRole(row, role)).map(mapEvent));
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TAX_ID_PATTERN = /^\d{13}$/;
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.title || !body?.company || !body?.place || !body?.startDate || !body?.endDate) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
-  const current = await listEvents();
-  const id = nextEventId(current);
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
+  const customerEmail = typeof body.customerEmail === "string" ? body.customerEmail.trim() : "";
+  if (customerEmail && !EMAIL_PATTERN.test(customerEmail)) {
+    return NextResponse.json({ error: "รูปแบบอีเมลไม่ถูกต้อง" }, { status: 400 });
+  }
+
+  const customerTaxId = typeof body.customerTaxId === "string" ? body.customerTaxId.trim() : "";
+  if (customerTaxId && !TAX_ID_PATTERN.test(customerTaxId)) {
+    return NextResponse.json(
+      { error: "เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก" },
+      { status: 400 }
+    );
+  }
+
+  const id = await allocateEventId();
   const createdAt = new Date().toISOString();
 
   await insertEvent({
@@ -100,8 +110,8 @@ export async function POST(req: NextRequest) {
     eventType: typeof body.eventType === "string" ? body.eventType : undefined,
     contactName: typeof body.contactName === "string" ? body.contactName : undefined,
     contactPhone: typeof body.contactPhone === "string" ? body.contactPhone : undefined,
-    customerEmail: typeof body.customerEmail === "string" ? body.customerEmail : undefined,
-    customerTaxId: typeof body.customerTaxId === "string" ? body.customerTaxId : undefined,
+    customerEmail: customerEmail || undefined,
+    customerTaxId: customerTaxId || undefined,
     equipment: [],
   });
 

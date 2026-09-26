@@ -39,7 +39,7 @@ export default function EventListCard({
   const canDeleteEvent =
     role === "SA" &&
     !isLocked &&
-    (event.status.text === "รออนุมัติ" || event.status.text === "ไม่อนุมัติ");
+    event.status.text === "รออนุมัติ";
 
   const canUploadSlip =
     role === "SA" &&

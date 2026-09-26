@@ -9,6 +9,7 @@ import {
   insertNotification,
   listNotificationsForRole,
 } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 type Role = "SA" | "Manager" | "Stockkeeper";
 
@@ -37,6 +38,9 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.title || !body?.message || !Array.isArray(body?.audience)) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
   const id = `NTF-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
   const createdAt = new Date().toISOString();

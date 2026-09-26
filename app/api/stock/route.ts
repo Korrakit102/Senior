@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adjustStock, listStockItems, upsertStockItems } from "@/lib/db";
 import type { StockRowDb } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 type StockApiRow = {
   id: string;
@@ -68,7 +69,21 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "invalid stock items" }, { status: 400 });
   }
 
-  await upsertStockItems(items);
+  if (containsNullByte(items)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
+  try {
+    await upsertStockItems(items);
+  } catch (err) {
+    if (err && typeof err === "object" && "code" in err && (err.code === "23001" || err.code === "23503")) {
+      return NextResponse.json(
+        { error: "ไม่สามารถลบอุปกรณ์นี้ออกจากสต็อกได้ เพราะมีประวัติการรับเข้า/ประวัติการเปลี่ยนแปลงผูกอยู่" },
+        { status: 409 }
+      );
+    }
+    throw err;
+  }
   return NextResponse.json({ ok: true, count: items.length });
 }
 
@@ -88,6 +103,11 @@ export async function PATCH(req: NextRequest) {
   );
   if (!valid) {
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
+  }
+
+  // เช็คทั้ง body ไม่ใช่แค่ items เพราะ eventId ถูกเขียนลง stock_history ด้วย
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 
   const eventId = typeof body?.eventId === "string" ? body.eventId : undefined;

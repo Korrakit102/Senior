@@ -59,7 +59,6 @@ export default function EventsCalendar({
         <EventDayLegendDot cls="bg-amber-500" label="รออนุมัติ" />
         <EventDayLegendDot cls="bg-emerald-500" label="อนุมัติแล้ว" />
         <EventDayLegendDot cls="bg-violet-500" label="กำลังใช้งาน" />
-        <EventDayLegendDot cls="bg-rose-500" label="ไม่อนุมัติ" />
       </div>
 
       <div className="mt-4 grid grid-cols-7 gap-3 text-xs font-semibold text-zinc-500">

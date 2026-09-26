@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { insertDamageItems, listDamageItems } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 const MAX_PHOTO_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_PHOTO_MIME_TYPES = ["image/jpeg", "image/png"];
@@ -71,6 +72,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
   }
 
+  if (containsNullByte({ eventId, eventCode, eventDate, items })) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
   const photoFiles = formData.getAll("photos").filter((f): f is File => f instanceof File);
   const totalExpectedPhotos = photoCounts.reduce((sum, n) => sum + n, 0);
   if (photoFiles.length !== totalExpectedPhotos) {
@@ -83,6 +88,10 @@ export async function POST(req: NextRequest) {
     }
     if (file.size > MAX_PHOTO_FILE_SIZE) {
       return NextResponse.json({ error: "photo file is too large (max 5MB)" }, { status: 400 });
+    }
+    // นามสกุลไฟล์ถูกใช้เป็น path บนดิสก์และเก็บลง photo_paths — เช็คก่อนเขียนไฟล์ใดๆ
+    if (containsNullByte(file.name)) {
+      return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
     }
   }
 

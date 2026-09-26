@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { updateDamageItemAmounts } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 // แก้ไข "มูลค่าความเสียหาย" และ "มูลค่าเรียกเก็บ" ของรายการความเสียหายหนึ่งแถว
 // เรียกจาก modal แก้ไขในหน้ารายงาน > ความเสียหาย
@@ -22,6 +23,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   if (!valid) {
     return NextResponse.json({ error: "invalid payload" }, { status: 400 });
+  }
+
+  if (containsNullByte({ eventId, itemName })) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 
   const updated = await updateDamageItemAmounts({ id, eventId, itemName, cost, billedCost });

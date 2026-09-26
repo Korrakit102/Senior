@@ -7,18 +7,53 @@ import {
   confirmEventPayment,
   deleteEventById,
   getEventById,
+  issueEquipmentAtomic,
+  returnEquipmentQuickAtomic,
+  returnEventFullAtomic,
   updateEventDecision,
-  updateEventEquipment,
   updateEventIssueStatus,
   updateEventPaymentReceipt,
   updateEventWorkOrderSalesTargets,
 } from "@/lib/db";
-import type { EventEquipmentRow, WorkOrderSalesTargets } from "@/lib/db";
+import type { EventEquipmentRow, StockRowDb, StockShortage, WorkOrderSalesTargets } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
+
+function mapStockForResponse(rows: StockRowDb[]) {
+  return rows.map((r) => ({
+    id: r.id,
+    qty: r.qty,
+    available: r.available,
+    status: r.status,
+    repairing: r.repairing,
+  }));
+}
+
+function normalizeItemList(value: unknown): Array<{ name: string; qty: number }> {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as { name?: unknown; qty?: unknown };
+      const name = typeof row.name === "string" ? row.name.trim() : "";
+      const qty = Math.max(0, Math.floor(Number(row.qty) || 0));
+      if (!name || qty <= 0) return null;
+      return { name, qty };
+    })
+    .filter((item): item is { name: string; qty: number } => item !== null);
+}
 
 const MAX_IMAGE_RECEIPT_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_PDF_RECEIPT_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ALLOWED_RECEIPT_MIME_TYPES = ["image/jpeg", "image/png", "application/pdf"];
 const RECEIPT_UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "receipts");
+const EVENT_DELETE_BLOCKED_ERROR =
+  "ลบอีเวนต์นี้ไม่ได้ เพราะมีประวัติความเสียหายผูกอยู่ กรุณาจัดการเคสความเสียหายให้เสร็จก่อน";
+
+function isEventDeleteBlockedError(err: unknown) {
+  if (!err || typeof err !== "object" || !("code" in err)) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "23001" || code === "23503";
+}
 
 // อัปโหลดสลิปการชำระเงิน: รับเป็น multipart/form-data แล้วเขียนไฟล์ลงดิสก์
 // (ไม่เก็บ base64 ก้อนใหญ่ใน DB เพราะ data URI ที่ยาวเกิน ~2MB เปิดในแท็บใหม่ไม่ได้บนเบราว์เซอร์ตระกูล Chromium)
@@ -48,6 +83,10 @@ async function handleUploadReceiptForm(req: NextRequest, id: string) {
     }
   } else if (file.size > MAX_IMAGE_RECEIPT_FILE_SIZE) {
     return NextResponse.json({ error: "receipt image file is too large (max 5MB)" }, { status: 400 });
+  }
+  // ชื่อไฟล์ถูกเก็บลง DB และนามสกุลถูกใช้เป็น path บนดิสก์ — ต้องเช็คก่อนเขียนไฟล์ ไม่งั้นเหลือไฟล์ค้างตอน DB error
+  if (containsNullByte(file.name)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 
   await mkdir(RECEIPT_UPLOAD_DIR, { recursive: true });
@@ -104,16 +143,17 @@ function textValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function optionalTextValue(value: unknown, fallback: string | null | undefined): string {
+function optionalTextValue(value: unknown, fallback: string | null): string {
   return typeof value === "string" ? value.trim() : fallback ?? "";
 }
 
 function optionalAttendeesValue(value: unknown, fallback: number | null): number | null {
-  if (value === null || value === "") return null;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.max(0, Math.floor(value));
-  }
-  return fallback;
+  if (value === undefined || value === null || value === "") return fallback;
+
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+
+  return Math.floor(n);
 }
 
 function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
@@ -155,56 +195,17 @@ function normalizeWorkOrderSalesTargets(value: unknown): WorkOrderSalesTargets {
   };
 }
 
-function mergeEquipment(
-  currentEquipment: EventEquipmentRow[],
-  incomingEquipment: EventEquipmentRow[]
-): EventEquipmentRow[] {
-  const byName = new Map<string, EventEquipmentRow>();
+function isValidWorkOrderSalesTargets(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
 
-  for (const item of currentEquipment) {
-    byName.set(item.name, { ...item });
+  const source = value as Record<string, unknown>;
+  if (source.rows !== undefined && !Array.isArray(source.rows)) return false;
+  if (source.carModelOptions !== undefined && !Array.isArray(source.carModelOptions)) return false;
+  if (source.totals !== undefined && (source.totals === null || typeof source.totals !== "object")) {
+    return false;
   }
 
-  for (const item of incomingEquipment) {
-    const existing = byName.get(item.name);
-    if (existing) {
-      byName.set(item.name, {
-        ...existing,
-        qty: existing.qty + item.qty,
-        available: existing.available || item.available,
-        category: existing.category || item.category,
-        pricePerDayTHB: existing.pricePerDayTHB || item.pricePerDayTHB,
-      });
-    } else {
-      byName.set(item.name, { ...item });
-    }
-  }
-
-  return Array.from(byName.values());
-}
-
-function subtractEquipment(
-  currentEquipment: EventEquipmentRow[],
-  returnedEquipment: EventEquipmentRow[]
-): EventEquipmentRow[] {
-  const byName = new Map<string, EventEquipmentRow>();
-
-  for (const item of currentEquipment) {
-    byName.set(item.name, { ...item });
-  }
-
-  for (const item of returnedEquipment) {
-    const existing = byName.get(item.name);
-    if (!existing) continue;
-    const nextQty = Math.max(0, existing.qty - item.qty);
-    if (nextQty === 0) {
-      byName.delete(item.name);
-    } else {
-      byName.set(item.name, { ...existing, qty: nextQty });
-    }
-  }
-
-  return Array.from(byName.values());
+  return true;
 }
 
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -217,7 +218,15 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
   const body = await req.json().catch(() => null);
 
-  if (body?.workOrderSalesTargets) {
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
+
+  if (body?.workOrderSalesTargets !== undefined) {
+    if (!isValidWorkOrderSalesTargets(body.workOrderSalesTargets)) {
+      return NextResponse.json({ error: "invalid workOrderSalesTargets" }, { status: 400 });
+    }
+
     const current = await getEventById(id);
     if (!current) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
@@ -237,14 +246,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   // ─── เพิ่ม/คืนอุปกรณ์แบบด่วน โดยผูกกับ Event ที่เลือก ─────────────────────
+  // อัปเดต equipment ของ Event + ปรับสต็อกจริง ในธุรกรรมเดียวกันที่ backend (กันปัญหา
+  // Event บอกว่าเบิก/คืนแล้วแต่ตัวเลขสต็อกไม่ตรงตาม ถ้าเรียกเป็น 2 endpoint แยกแล้วอันใดอันหนึ่งพลาด)
   if (body?.quickEquipmentAction) {
     if (!["add", "remove"].includes(body.quickEquipmentAction)) {
       return NextResponse.json({ error: "invalid quickEquipmentAction" }, { status: 400 });
-    }
-
-    const current = await getEventById(id);
-    if (!current) {
-      return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
     const incomingEquipment = normalizeEquipmentList(body.equipment);
@@ -252,41 +258,46 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "equipment is required" }, { status: 400 });
     }
 
-    const currentEquipment = Array.isArray(current.equipment) ? current.equipment : [];
-    const nextEquipment =
-      body.quickEquipmentAction === "add"
-        ? mergeEquipment(currentEquipment, incomingEquipment)
-        : subtractEquipment(currentEquipment, incomingEquipment);
+    try {
+      if (body.quickEquipmentAction === "add") {
+        const result = await issueEquipmentAtomic({ id, incomingEquipment });
+        return NextResponse.json({
+          ok: true,
+          equipment: result.equipment,
+          issueStatus: "inuse",
+          stock: mapStockForResponse(result.stock),
+        });
+      }
 
-    const isFullyReturned =
-      body.quickEquipmentAction === "remove" && nextEquipment.length === 0;
-
-    const rowCount = await updateEventEquipment({
-      id,
-      equipment: nextEquipment,
-      issueStatus:
-        body.quickEquipmentAction === "add"
-          ? "inuse"
-          : isFullyReturned
-            ? "returned"
-            : "inuse",
-      isDamaged:
-        body.quickEquipmentAction === "remove" && body.isDamaged === true
-          ? true
-          : undefined,
-      statusText: isFullyReturned ? "รอชำระเงิน" : undefined,
-      statusTone: isFullyReturned ? "pending" : undefined,
-    });
-
-    if (rowCount === 0) {
-      return NextResponse.json({ error: "event not found" }, { status: 404 });
+      const isDamaged = body.isDamaged === true;
+      const items = incomingEquipment.map((i) => ({ name: i.name, qty: i.qty }));
+      const result = await returnEquipmentQuickAtomic({
+        id,
+        normalItems: isDamaged ? [] : items,
+        damagedItems: isDamaged ? items : [],
+      });
+      return NextResponse.json({
+        ok: true,
+        equipment: result.equipment,
+        issueStatus: result.issueStatus,
+        stock: mapStockForResponse(result.stock),
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message === "event not found") {
+        return NextResponse.json({ error: "event not found" }, { status: 404 });
+      }
+      if (err instanceof Error && err.message === "insufficient stock") {
+        const shortages = (err as Error & { shortages?: StockShortage[] }).shortages ?? [];
+        const detail = shortages
+          .map((s) => `${s.name} (ขอ ${s.requested}, คงเหลือ ${s.available})`)
+          .join(", ");
+        return NextResponse.json(
+          { error: `สต็อกไม่พอสำหรับการเบิก: ${detail}`, shortages },
+          { status: 409 }
+        );
+      }
+      throw err;
     }
-
-    return NextResponse.json({
-      ok: true,
-      equipment: nextEquipment,
-      issueStatus: isFullyReturned ? "returned" : "inuse",
-    });
   }
 
   // ─── ยืนยันการชำระเงิน (อัปโหลดสลิปแยกไปที่ multipart branch ด้านบนแล้ว) ─────
@@ -325,13 +336,31 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "invalid issueStatus" }, { status: 400 });
     }
 
+    // คืนอุปกรณ์เต็มจำนวน (หน้าคืนปกติ): ปิดสถานะ Event + ปรับสต็อกจริง ในธุรกรรมเดียวกันที่ backend
+    if (body.issueStatus === "returned") {
+      const normalItems = normalizeItemList(body.normalItems);
+      const damagedItems = normalizeItemList(body.damagedItems);
+      try {
+        const result = await returnEventFullAtomic({ id, normalItems, damagedItems });
+        return NextResponse.json({
+          ok: true,
+          status: { text: "รอชำระเงิน", tone: "pending" },
+          stock: mapStockForResponse(result.stock),
+        });
+      } catch (err) {
+        if (err instanceof Error && err.message === "event not found") {
+          return NextResponse.json({ error: "event not found" }, { status: 404 });
+        }
+        throw err;
+      }
+    }
+
     const current = await getEventById(id);
     if (!current) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
 
-    const isDamaged = body.issueStatus === "returned" ? body.isDamaged === true : false;
-    const rowCount = await updateEventIssueStatus(id, body.issueStatus, isDamaged);
+    const rowCount = await updateEventIssueStatus(id, body.issueStatus, false);
     if (rowCount === 0) {
       return NextResponse.json({ error: "event not found" }, { status: 404 });
     }
@@ -350,13 +379,31 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 
   const decision = body.decision === "approved" ? "approved" : "rejected";
+  if (decision === "rejected") {
+    let rowCount = 0;
+    try {
+      rowCount = await deleteEventById(id);
+    } catch (err) {
+      if (isEventDeleteBlockedError(err)) {
+        return NextResponse.json({ error: EVENT_DELETE_BLOCKED_ERROR }, { status: 409 });
+      }
+      throw err;
+    }
+
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, deleted: true });
+  }
+
   const rowCount = await updateEventDecision({
     id,
     startDate: body.startDate,
     endDate: body.endDate,
     itemsCount: body.equipment.length,
-    statusText: decision === "approved" ? "อนุมัติแล้ว" : "ไม่อนุมัติ",
-    statusTone: decision === "approved" ? "success" : "rejected",
+    statusText: "อนุมัติแล้ว",
+    statusTone: "success",
     equipment: body.equipment,
     attendees: optionalAttendeesValue(body.attendees, current.attendees),
     workFormat: optionalTextValue(body.workFormat, current.work_format),
@@ -374,9 +421,16 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
 export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const rowCount = await deleteEventById(id);
-  if (rowCount === 0) {
-    return NextResponse.json({ error: "event not found" }, { status: 404 });
+  try {
+    const rowCount = await deleteEventById(id);
+    if (rowCount === 0) {
+      return NextResponse.json({ error: "event not found" }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (isEventDeleteBlockedError(err)) {
+      return NextResponse.json({ error: EVENT_DELETE_BLOCKED_ERROR }, { status: 409 });
+    }
+    throw err;
   }
-  return NextResponse.json({ ok: true });
 }

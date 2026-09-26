@@ -766,7 +766,7 @@ export default function ManageEquipmentModal({
                     </span>
                     <span>
                       <span className="block text-sm font-semibold text-zinc-900">ไม่อนุมัติ</span>
-                      <span className="mt-1 block text-xs leading-5 text-zinc-500">บันทึกเป็นไม่อนุมัติ</span>
+                      <span className="mt-1 block text-xs leading-5 text-zinc-500">ลบอีเวนต์ออกจากระบบ</span>
                     </span>
                   </button>
                 </div>

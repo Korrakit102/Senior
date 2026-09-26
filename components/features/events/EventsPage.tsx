@@ -200,7 +200,6 @@ export default function EventsPage({
         ? statusOptions.filter(
             (option) =>
               option !== "รออนุมัติ" &&
-              option !== "ไม่อนุมัติ" &&
               option !== "รอชำระเงิน" &&
               option !== "รอตรวจสอบการชำระเงิน"
           )
@@ -328,7 +327,11 @@ export default function EventsPage({
     if (!target) { setDeleteEventId(null); return; }
     try {
       const res = await fetch(`/api/events/${deleteEventId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("failed to delete event");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setToast(data?.error || "ไม่สามารถลบอีเวนต์ได้");
+        return;
+      }
     } catch {
       setToast("ไม่สามารถลบอีเวนต์ได้");
       return;
@@ -567,11 +570,40 @@ export default function EventsPage({
                 decision,
               }),
             });
-            if (!res.ok) throw new Error("failed");
-            // อัปเดต UI เฉพาะหลัง API สำเร็จ
+            if (!res.ok) {
+              const data = await res.json().catch(() => null);
+              throw new Error(data?.error || "failed");
+            }
+            const eventTitle = targetEvent?.title ?? "อีเวนต์";
+
             if (oldEquipment && targetEvent?.status.tone === "success") {
               onReturnStock(oldEquipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
             }
+
+            if (decision === "rejected") {
+              setEvents((prev) => prev.filter((ev) => ev.id !== manageEventId));
+              setEquipmentByEvent((prev) => {
+                if (!(manageEventId in prev)) return prev;
+                const next = { ...prev };
+                delete next[manageEventId];
+                return next;
+              });
+              setCalendarDetail((prev) => {
+                if (!prev) return prev;
+                const nextEvents = prev.events.filter((ev) => ev.id !== manageEventId);
+                if (nextEvents.length === 0) return null;
+                return { ...prev, events: nextEvents };
+              });
+              if (detailEventId === manageEventId) setDetailEventId(null);
+              pushNotification({
+                title: "ไม่อนุมัติอีเวนต์",
+                message: `${eventTitle} ไม่อนุมัติและถูกลบออกจากระบบแล้ว`,
+                audience: ["SA"],
+              });
+              setToast(`ไม่อนุมัติและลบอีเวนต์แล้ว: "${eventTitle}"`);
+              return;
+            }
+
             setEquipmentByEvent((prev) => ({ ...prev, [manageEventId]: equipment }));
             setEvents((prev) => prev.map((ev) => {
               if (ev.id !== manageEventId) return ev;
@@ -584,22 +616,19 @@ export default function EventsPage({
                 workNature,
                 eventSize,
                 eventType,
-                status: decision === "approved"
-                  ? { text: "อนุมัติแล้ว", tone: "success" as const }
-                  : { text: "ไม่อนุมัติ", tone: "rejected" as const },
+                status: { text: "อนุมัติแล้ว", tone: "success" as const },
               };
             }));
-            if (decision === "approved") {
-              onDeductStock(equipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
-              pushNotification({ title: "อนุมัติอุปกรณ์อีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
-              window.dispatchEvent(new CustomEvent("app:event:approved"));
-              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ถูกอนุมัติ`);
-            } else {
-              pushNotification({ title: "ไม่อนุมัติอีเวนต์", message: `${targetEvent?.title ?? "อีเวนต์"} ถูกบันทึกเป็นไม่อนุมัติ`, audience: ["SA"] });
-              setToast(`บันทึกแล้ว: "${targetEvent?.title ?? "อีเวนต์"}" ไม่อนุมัติ`);
-            }
-          } catch {
-            setToast("ไม่สามารถบันทึกอีเวนต์ลงฐานข้อมูลได้");
+            onDeductStock(equipment.map((eq) => ({ name: eq.name, qty: eq.qty })));
+            pushNotification({ title: "อนุมัติอุปกรณ์อีเวนต์", message: `${eventTitle} อนุมัติรายการอุปกรณ์แล้ว`, audience: ["SA", "Stockkeeper"] });
+            window.dispatchEvent(new CustomEvent("app:event:approved"));
+            setToast(`บันทึกแล้ว: "${eventTitle}" ถูกอนุมัติ`);
+          } catch (err) {
+            const message =
+              err instanceof Error && err.message !== "failed"
+                ? err.message
+                : "ไม่สามารถบันทึกอีเวนต์ลงฐานข้อมูลได้";
+            setToast(message);
           }
         }}
       />

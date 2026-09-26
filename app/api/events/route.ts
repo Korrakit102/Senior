@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import type { EventRow } from "@/lib/db";
-import { insertEvent, listEvents } from "@/lib/db";
+import { allocateEventId, insertEvent, listEvents } from "@/lib/db";
 import { containsNullByte } from "@/lib/sanitize";
 
 function mapEvent(row: EventRow) {
@@ -43,16 +43,6 @@ function mapEvent(row: EventRow) {
   };
 }
 
-function nextEventId(rows: EventRow[]) {
-  let max = 0;
-  for (const row of rows) {
-    const match = row.id.match(/^EVT(\d+)$/);
-    if (!match) continue;
-    max = Math.max(max, Number(match[1]));
-  }
-  return `EVT${String(max + 1).padStart(3, "0")}`;
-}
-
 function canReturnEventForRole(row: EventRow, role: string | null) {
   if (role !== "Stockkeeper") return true;
 
@@ -91,8 +81,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const current = await listEvents();
-  const id = nextEventId(current);
+  const id = await allocateEventId();
   const createdAt = new Date().toISOString();
 
   await insertEvent({

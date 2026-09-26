@@ -305,6 +305,15 @@ async function ensureEventsTable(client?: PoolClient) {
       ALTER TABLE events
       ADD COLUMN IF NOT EXISTS work_order_sales_targets JSONB NOT NULL DEFAULT '{"rows":[],"totals":{"bookingTarget":"","interestedTarget":""},"carModelOptions":[]}'::jsonb;
     `);
+    // เลข Event ออกจาก sequence เพื่อไม่ให้เลขของ Event ที่ลบไปแล้วถูกนำกลับมาใช้ซ้ำ
+    // (เลขเอกสาร INV-/QT-/WO- อิงจาก id) — seed จากเลขสูงสุดที่มีอยู่ครั้งเดียวตอนที่ sequence ยังไม่เคยถูกใช้
+    await c.query(`CREATE SEQUENCE IF NOT EXISTS events_id_seq;`);
+    await c.query(`
+      SELECT setval('events_id_seq', t.max_no)
+      FROM events_id_seq s,
+           (SELECT MAX(substring(id FROM '^EVT([0-9]+)$')::int) AS max_no FROM events) t
+      WHERE NOT s.is_called AND t.max_no IS NOT NULL;
+    `);
     // ข้อมูลเก่าที่คืนอุปกรณ์แล้วแต่ยังไม่มีใบเสร็จ ต้องกลับเข้าขั้นตอนรอชำระเงินตาม flow ใหม่
     await c.query(`
       UPDATE events
@@ -749,6 +758,18 @@ export async function getEventById(id: string): Promise<EventRow | null> {
 }
 
 // เพิ่ม Event ใหม่จากฟอร์มสร้างงาน โดยเริ่ม issue_status เป็น ready
+// ขอเลข Event ถัดไป (EVT001, EVT002, ...) จาก sequence — atomic กันสร้างพร้อมกันได้เลขซ้ำ และไม่ย้อนกลับเมื่อลบ Event
+export async function allocateEventId(): Promise<string> {
+  const client = await pool.connect();
+  try {
+    await ensureEventsTable(client);
+    const res = await client.query<{ no: string }>(`SELECT nextval('events_id_seq') AS no`);
+    return `EVT${res.rows[0].no.padStart(3, "0")}`;
+  } finally {
+    client.release();
+  }
+}
+
 export async function insertEvent(payload: {
   id: string;
   title: string;

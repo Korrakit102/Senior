@@ -76,6 +76,10 @@ async function handleUploadReceiptForm(req: NextRequest, id: string) {
   } else if (file.size > MAX_IMAGE_RECEIPT_FILE_SIZE) {
     return NextResponse.json({ error: "receipt image file is too large (max 5MB)" }, { status: 400 });
   }
+  // ชื่อไฟล์ถูกเก็บลง DB และนามสกุลถูกใช้เป็น path บนดิสก์ — ต้องเช็คก่อนเขียนไฟล์ ไม่งั้นเหลือไฟล์ค้างตอน DB error
+  if (containsNullByte(file.name)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+  }
 
   await mkdir(RECEIPT_UPLOAD_DIR, { recursive: true });
 

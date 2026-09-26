@@ -105,7 +105,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "invalid items" }, { status: 400 });
   }
 
-  if (containsNullByte(items)) {
+  // เช็คทั้ง body ไม่ใช่แค่ items เพราะ eventId ถูกเขียนลง stock_history ด้วย
+  if (containsNullByte(body)) {
     return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 

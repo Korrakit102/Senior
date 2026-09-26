@@ -89,6 +89,10 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_PHOTO_FILE_SIZE) {
       return NextResponse.json({ error: "photo file is too large (max 5MB)" }, { status: 400 });
     }
+    // นามสกุลไฟล์ถูกใช้เป็น path บนดิสก์และเก็บลง photo_paths — เช็คก่อนเขียนไฟล์ใดๆ
+    if (containsNullByte(file.name)) {
+      return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
+    }
   }
 
   if (photoFiles.length > 0) {

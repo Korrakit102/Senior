@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { insertEquipmentHistory, listEquipmentHistoryByEvent } from "@/lib/db";
+import { containsNullByte } from "@/lib/sanitize";
 
 // ─── GET: ดึงประวัติการแก้ไขอุปกรณ์ของ Event ─────────────────────────────
 export async function GET(
@@ -27,6 +28,10 @@ export async function POST(
 
   if (!["เพิ่ม", "ลบ"].includes(body.action)) {
     return NextResponse.json({ error: "invalid action" }, { status: 400 });
+  }
+
+  if (containsNullByte(body)) {
+    return NextResponse.json({ error: "ข้อความมีอักขระที่ไม่รองรับ กรุณาลบแล้วลองใหม่" }, { status: 400 });
   }
 
   await insertEquipmentHistory({
